@@ -307,6 +307,13 @@ for config_file in "${NGINX_SITES_DIR}"/*.conf; do
         log "Removing config for removed service: ${config_name}"
         rm -f "${config_file}"
         
+        # Stop docker service if it exists
+        service_compose="/opt/services/${config_name}/docker-compose.yml"
+        if [[ -f "${service_compose}" ]]; then
+            log "Stopping docker service: ${config_name}"
+            (cd "/opt/services/${config_name}" && docker compose down) || log "Warning: failed to stop service ${config_name}"
+        fi
+        
         # Optionally remove certificate if it exists
         cert_dir="${ROOT_DIR}/certbot/conf/live/${config_name}"
         if [[ -d "${cert_dir}" ]]; then
