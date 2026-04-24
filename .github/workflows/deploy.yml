@@ -26,10 +26,6 @@ jobs:
             git fetch --all --prune
             git reset --hard origin/main
 
-            find . \
-              -path './certbot/conf' -prune -o \
-              -path './certbot/www' -prune -o \
-              -name '*Zone.Identifier' -type f -delete
             find ./scripts -type f -name "*.sh" -exec chmod +x {} +
 
             ./scripts/init-edge-network.sh
