@@ -180,6 +180,10 @@ issue_certificate() {
 
     if [[ $? -eq 0 ]]; then
         log "Certificate successfully issued for ${domain}, saved to ${cert_path}"
+        
+        # Fix permissions so deploy user can read certificates
+        log "Fixing certificate permissions for ${domain}"
+        chmod -R u+rw,g+r,o-rwx "${ROOT_DIR}/certbot/conf/live/${domain}" 2>/dev/null || true
     else
         log "Certificate issuance failed for ${domain}"
         exit 1

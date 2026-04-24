@@ -20,4 +20,9 @@ docker compose run --rm --entrypoint certbot certbot certonly \
   --no-eff-email \
   -d "${DOMAIN}"
 
+# Fix permissions so deploy user can read certificates
+if [[ -d "${ROOT_DIR}/certbot/conf/live/${DOMAIN}" ]]; then
+    chmod -R u+rw,g+r,o-rwx "${ROOT_DIR}/certbot/conf/live/${DOMAIN}"
+fi
+
 echo "Certificate issued for ${DOMAIN}."
