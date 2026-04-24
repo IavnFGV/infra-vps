@@ -11,6 +11,26 @@ cd "${ROOT_DIR}"
 
 DOMAIN="$1"
 EMAIL="$2"
+WEBROOT_DIR="${ROOT_DIR}/certbot/www"
+
+fix_webroot_permissions() {
+  mkdir -p "${WEBROOT_DIR}/.well-known/acme-challenge"
+
+  if [[ ! -w "${WEBROOT_DIR}" ]]; then
+    echo "Fixing certbot webroot owner: ${WEBROOT_DIR}"
+    sudo chown -R "$(id -u):$(id -g)" "${WEBROOT_DIR}"
+  fi
+
+  chmod -R u+rwX,go+rX "${WEBROOT_DIR}"
+}
+
+fix_cert_permissions() {
+  if [[ -d "${ROOT_DIR}/certbot/conf/live/${DOMAIN}" ]]; then
+    chmod -R u+rwX,g+rX,o-rwx "${ROOT_DIR}/certbot/conf/live/${DOMAIN}" || true
+  fi
+}
+
+fix_webroot_permissions
 
 docker compose run --rm --entrypoint certbot certbot certonly \
   --webroot \
@@ -20,9 +40,6 @@ docker compose run --rm --entrypoint certbot certbot certonly \
   --no-eff-email \
   -d "${DOMAIN}"
 
-# Fix permissions so deploy user can read certificates
-if [[ -d "${ROOT_DIR}/certbot/conf/live/${DOMAIN}" ]]; then
-    chmod -R u+rw,g+r,o-rwx "${ROOT_DIR}/certbot/conf/live/${DOMAIN}"
-fi
+fix_cert_permissions
 
 echo "Certificate issued for ${DOMAIN}."

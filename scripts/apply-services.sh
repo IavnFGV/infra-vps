@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Script to apply services from registry/services/*.env
-# Generates nginx configs, issues certificates, and reloads nginx.
+# Applies services from registry/services/*.env.
+# Generates nginx configs, issues certificates when needed, and reloads nginx.
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT_DIR}"
@@ -13,81 +13,78 @@ SERVICES_DIR="${ROOT_DIR}/registry/services"
 DEFAULT_KEY_FILE="/opt/infra-secrets/master.key"
 KEY_FILE="${INFRA_MASTER_KEY_FILE:-${DEFAULT_KEY_FILE}}"
 
-# Ensure log directory exists
 mkdir -p "$(dirname "${LOG_FILE}")"
+mkdir -p "${NGINX_SITES_DIR}"
 
-# Logging function
 log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $*" | tee -a "${LOG_FILE}"
 }
 
-# Decrypt function (no logging to avoid stdout pollution)
 decrypt_value() {
-    local encrypted="$1"
+    local value="$1"
 
-    if [[ -z "${encrypted}" ]]; then
-        echo ""
-        return
+    if [[ -z "${value}" ]]; then
+        printf ""
+        return 0
     fi
 
-    if [[ "${encrypted}" == enc:* ]]; then
-        ./scripts/decrypt-value.sh "${encrypted}"
+    if [[ "${value}" == enc:* ]]; then
+        INFRA_MASTER_KEY_FILE="${KEY_FILE}" ./scripts/decrypt-value.sh "${value}"
     else
-        echo "${encrypted}"
+        printf "%s" "${value}"
     fi
 }
 
-# Validate required variables
-validate_service() {
-    local service_name="$1"
-    if [[ -z "${SERVICE_NAME:-}" ]]; then
-        log "Error: SERVICE_NAME is required for ${service_name}"
-        exit 1
-    fi
-    if [[ -z "${DOMAIN:-}" ]]; then
-        log "Error: DOMAIN is required for ${service_name}"
-        exit 1
-    fi
-    if [[ -z "${UPSTREAM_HOST:-}" ]]; then
-        log "Error: UPSTREAM_HOST is required for ${service_name}"
-        exit 1
-    fi
-    if [[ -z "${UPSTREAM_PORT:-}" ]]; then
-        log "Error: UPSTREAM_PORT is required for ${service_name}"
-        exit 1
-    fi
-    if [[ "${ENABLE_HTTPS:-false}" == "true" && -z "${LETSENCRYPT_EMAIL:-}" ]]; then
-        log "Error: LETSENCRYPT_EMAIL is required when ENABLE_HTTPS=true for ${service_name}"
-        exit 1
-    fi
-    if [[ "${STATIC_ENABLED:-false}" == "true" && -z "${STATIC_SECRET:-}" ]]; then
-        log "Error: STATIC_SECRET is required when STATIC_ENABLED=true for ${service_name}"
+require_var() {
+    local var_name="$1"
+    local service_name="$2"
+
+    if [[ -z "${!var_name:-}" ]]; then
+        log "ERROR: ${var_name} is required for ${service_name}"
         exit 1
     fi
 }
 
-# Generate nginx config for HTTP
+normalize_static_prefix() {
+    local prefix="$1"
+
+    if [[ -z "${prefix}" ]]; then
+        prefix="/static"
+    fi
+
+    prefix="/${prefix#/}"
+    prefix="${prefix%/}"
+
+    printf "%s" "${prefix}"
+}
+
+normalize_dir_with_trailing_slash() {
+    local dir="$1"
+
+    dir="${dir%/}/"
+
+    printf "%s" "${dir}"
+}
+
 generate_http_config() {
-    local service_name="$1"
-    local domain="$2"
-    local upstream_host="$3"
-    local upstream_port="$4"
-    local static_enabled="$5"
-    local static_public_prefix="$6"
-    local static_secret="$7"
-    local static_dir="$8"
+    local domain="$1"
+    local upstream_host="$2"
+    local upstream_port="$3"
+    local static_enabled="$4"
+    local static_public_prefix="$5"
+    local static_secret="$6"
+    local static_dir="$7"
 
     cat <<EOF
 server {
     listen 80;
     server_name ${domain};
 
+    include /etc/nginx/snippets/acme.conf;
+
     location / {
         proxy_pass http://${upstream_host}:${upstream_port};
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
+        include /etc/nginx/snippets/proxy.conf;
     }
 EOF
 
@@ -95,7 +92,7 @@ EOF
         cat <<EOF
 
     location ${static_public_prefix}/${static_secret}/ {
-        alias ${static_dir}/;
+        alias ${static_dir};
         autoindex off;
         try_files \$uri \$uri/ =404;
     }
@@ -107,38 +104,41 @@ EOF
 EOF
 }
 
-# Generate nginx config for HTTPS
 generate_https_config() {
-    local service_name="$1"
-    local domain="$2"
-    local upstream_host="$3"
-    local upstream_port="$4"
-    local static_enabled="$5"
-    local static_public_prefix="$6"
-    local static_secret="$7"
-    local static_dir="$8"
+    local domain="$1"
+    local upstream_host="$2"
+    local upstream_port="$3"
+    local static_enabled="$4"
+    local static_public_prefix="$5"
+    local static_secret="$6"
+    local static_dir="$7"
 
     cat <<EOF
 server {
     listen 80;
     server_name ${domain};
-    return 301 https://\$server_name\$request_uri;
+
+    include /etc/nginx/snippets/acme.conf;
+
+    location / {
+        return 301 https://\$host\$request_uri;
+    }
 }
 
 server {
-    listen 443 ssl http2;
+    listen 443 ssl;
+    http2 on;
+
     server_name ${domain};
 
     ssl_certificate /etc/letsencrypt/live/${domain}/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/${domain}/privkey.pem;
+
     include /etc/nginx/snippets/ssl.conf;
 
     location / {
         proxy_pass http://${upstream_host}:${upstream_port};
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
+        include /etc/nginx/snippets/proxy.conf;
     }
 EOF
 
@@ -146,7 +146,7 @@ EOF
         cat <<EOF
 
     location ${static_public_prefix}/${static_secret}/ {
-        alias ${static_dir}/;
+        alias ${static_dir};
         autoindex off;
         try_files \$uri \$uri/ =404;
     }
@@ -158,104 +158,134 @@ EOF
 EOF
 }
 
-# Issue certificate if not exists
-issue_certificate() {
+validate_service() {
+    local service_file_name="$1"
+
+    require_var "SERVICE_NAME" "${service_file_name}"
+    require_var "DOMAIN" "${SERVICE_NAME}"
+    require_var "UPSTREAM_HOST" "${SERVICE_NAME}"
+    require_var "UPSTREAM_PORT" "${SERVICE_NAME}"
+
+    if [[ "${ENABLE_HTTPS:-false}" == "true" ]]; then
+        require_var "LETSENCRYPT_EMAIL" "${SERVICE_NAME}"
+    fi
+
+    if [[ "${STATIC_ENABLED:-false}" == "true" ]]; then
+        require_var "STATIC_SECRET" "${SERVICE_NAME}"
+        require_var "STATIC_DIR" "${SERVICE_NAME}"
+    fi
+}
+
+issue_certificate_if_needed() {
     local domain="$1"
     local email="$2"
-
     local cert_path="${ROOT_DIR}/certbot/conf/live/${domain}/fullchain.pem"
+
     if [[ -f "${cert_path}" ]]; then
-        log "Certificate already exists for ${domain} at ${cert_path}"
-        return
+        log "Certificate already exists for ${domain}"
+        return 0
     fi
 
     log "Issuing certificate for ${domain}"
-    docker compose run --rm --entrypoint certbot certbot certonly \
-        --webroot \
-        --webroot-path /var/www/certbot \
-        --email "${email}" \
-        --agree-tos \
-        --no-eff-email \
-        -d "${domain}"
+    ./scripts/issue-cert.sh "${domain}" "${email}"
 
-    if [[ $? -eq 0 ]]; then
-        log "Certificate successfully issued for ${domain}, saved to ${cert_path}"
-        
-        # Fix permissions so deploy user can read certificates
-        log "Fixing certificate permissions for ${domain}"
-        chmod -R u+rw,g+r,o-rwx "${ROOT_DIR}/certbot/conf/live/${domain}" 2>/dev/null || true
-    else
-        log "Certificate issuance failed for ${domain}"
+    if [[ ! -f "${cert_path}" ]]; then
+        log "ERROR: certificate file was not created: ${cert_path}"
         exit 1
     fi
+
+    log "Certificate issued for ${domain}"
+}
+
+apply_service() {
+    local service_file="$1"
+    local service_file_name
+    service_file_name="$(basename "${service_file}" .env)"
+
+    unset SERVICE_NAME DOMAIN UPSTREAM_HOST UPSTREAM_PORT
+    unset ENABLE_HTTPS LETSENCRYPT_EMAIL
+    unset STATIC_ENABLED STATIC_PUBLIC_PREFIX STATIC_SECRET STATIC_DIR
+
+    log "Processing service file: ${service_file}"
+
+    # shellcheck disable=SC1090
+    source "${service_file}"
+
+    LETSENCRYPT_EMAIL="$(decrypt_value "${LETSENCRYPT_EMAIL:-}")"
+    STATIC_SECRET="$(decrypt_value "${STATIC_SECRET:-}")"
+
+    ENABLE_HTTPS="${ENABLE_HTTPS:-false}"
+    STATIC_ENABLED="${STATIC_ENABLED:-false}"
+    STATIC_PUBLIC_PREFIX="$(normalize_static_prefix "${STATIC_PUBLIC_PREFIX:-/static}")"
+
+    if [[ -n "${STATIC_DIR:-}" ]]; then
+        STATIC_DIR="$(normalize_dir_with_trailing_slash "${STATIC_DIR}")"
+    fi
+
+    validate_service "${service_file_name}"
+
+    local config_file="${NGINX_SITES_DIR}/${SERVICE_NAME}.conf"
+
+    log "Generating HTTP config for ${SERVICE_NAME}"
+    generate_http_config \
+        "${DOMAIN}" \
+        "${UPSTREAM_HOST}" \
+        "${UPSTREAM_PORT}" \
+        "${STATIC_ENABLED}" \
+        "${STATIC_PUBLIC_PREFIX}" \
+        "${STATIC_SECRET:-}" \
+        "${STATIC_DIR:-}" \
+        > "${config_file}"
+
+    if [[ "${ENABLE_HTTPS}" == "true" ]]; then
+        log "Testing nginx config before certificate issue"
+        docker compose exec nginx nginx -t
+
+        log "Reloading nginx with HTTP config for ACME challenge"
+        docker compose exec nginx nginx -s reload
+
+        issue_certificate_if_needed "${DOMAIN}" "${LETSENCRYPT_EMAIL}"
+
+        log "Generating HTTPS config for ${SERVICE_NAME}"
+        generate_https_config \
+            "${DOMAIN}" \
+            "${UPSTREAM_HOST}" \
+            "${UPSTREAM_PORT}" \
+            "${STATIC_ENABLED}" \
+            "${STATIC_PUBLIC_PREFIX}" \
+            "${STATIC_SECRET:-}" \
+            "${STATIC_DIR:-}" \
+            > "${config_file}"
+    fi
+
+    log "Config generated for ${SERVICE_NAME}: ${config_file}"
 }
 
 log "Starting apply-services.sh"
 
-# Ensure nginx sites directory exists
-mkdir -p "${NGINX_SITES_DIR}"
+if [[ ! -d "${SERVICES_DIR}" ]]; then
+    log "No services registry directory found: ${SERVICES_DIR}"
+    exit 0
+fi
 
-# Process each service
+found_services=false
+
 for service_file in "${SERVICES_DIR}"/*.env; do
     if [[ ! -f "${service_file}" ]]; then
         continue
     fi
 
-    service_name=$(basename "${service_file}" .env)
-    log "Processing service: ${service_name}"
-
-    # Source the env file
-    # shellcheck disable=SC1090
-    source "${service_file}"
-
-    # Decrypt values with logging
-    log "Decrypting LETSENCRYPT_EMAIL"
-    LETSENCRYPT_EMAIL=$(decrypt_value "${LETSENCRYPT_EMAIL:-}")
-    if [[ -n "${LETSENCRYPT_EMAIL}" ]]; then
-        log "LETSENCRYPT_EMAIL: decrypted successfully"
-    fi
-
-    log "Decrypting STATIC_SECRET"
-    STATIC_SECRET=$(decrypt_value "${STATIC_SECRET:-}")
-    if [[ -n "${STATIC_SECRET}" ]]; then
-        log "STATIC_SECRET: decrypted successfully"
-    fi
-
-    # Validate
-    validate_service "${service_name}"
-
-    # Generate config file path
-    config_file="${NGINX_SITES_DIR}/${SERVICE_NAME}.conf"
-
-    if [[ "${ENABLE_HTTPS:-false}" == "true" ]]; then
-        # First, generate HTTP config
-        log "Generating HTTP config for ${SERVICE_NAME}"
-        generate_http_config "${SERVICE_NAME}" "${DOMAIN}" "${UPSTREAM_HOST}" "${UPSTREAM_PORT}" "${STATIC_ENABLED:-false}" "${STATIC_PUBLIC_PREFIX:-/static}" "${STATIC_SECRET}" "${STATIC_DIR}" > "${config_file}"
-
-        # Test and reload
-        log "Testing nginx config"
-        docker compose exec nginx nginx -t
-        log "Reloading nginx"
-        docker compose exec nginx nginx -s reload
-
-        # Issue certificate
-        issue_certificate "${DOMAIN}" "${LETSENCRYPT_EMAIL}"
-
-        # Now generate HTTPS config
-        log "Generating HTTPS config for ${SERVICE_NAME}"
-        generate_https_config "${SERVICE_NAME}" "${DOMAIN}" "${UPSTREAM_HOST}" "${UPSTREAM_PORT}" "${STATIC_ENABLED:-false}" "${STATIC_PUBLIC_PREFIX:-/static}" "${STATIC_SECRET}" "${STATIC_DIR}" > "${config_file}"
-    else
-        # Generate HTTP only config
-        log "Generating HTTP config for ${SERVICE_NAME}"
-        generate_http_config "${SERVICE_NAME}" "${DOMAIN}" "${UPSTREAM_HOST}" "${UPSTREAM_PORT}" "${STATIC_ENABLED:-false}" "${STATIC_PUBLIC_PREFIX:-/static}" "${STATIC_SECRET}" "${STATIC_DIR}" > "${config_file}"
-    fi
-
-    log "Config generated for ${SERVICE_NAME}"
+    found_services=true
+    apply_service "${service_file}"
 done
 
-# Final test and reload
+if [[ "${found_services}" == "false" ]]; then
+    log "No service registry files found in ${SERVICES_DIR}"
+fi
+
 log "Final nginx config test"
 docker compose exec nginx nginx -t
+
 log "Final nginx reload"
 docker compose exec nginx nginx -s reload
 
