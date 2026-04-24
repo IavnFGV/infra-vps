@@ -13,12 +13,14 @@ DOMAIN="$1"
 EMAIL="$2"
 WEBROOT_DIR="${ROOT_DIR}/certbot/www"
 
-mkdir -p "${WEBROOT_DIR}/.well-known/acme-challenge"
-chmod -R u+rwX,go+rX "${WEBROOT_DIR}"
+mkdir -p \
+  "${ROOT_DIR}/certbot/www/.well-known/acme-challenge" \
+  "${ROOT_DIR}/certbot/work" \
+  "${ROOT_DIR}/certbot/logs" \
+  "${ROOT_DIR}/certbot/conf"
 
-mkdir -p certbot/www/.well-known/acme-challenge certbot/work certbot/logs
-chmod -R u+rwX,go+rX certbot/www
-chmod -R u+rwX,go-rwx certbot/work certbot/logs
+chmod -R u+rwX,go+rX "${ROOT_DIR}/certbot/www"
+chmod -R u+rwX,go-rwx "${ROOT_DIR}/certbot/work" "${ROOT_DIR}/certbot/logs" "${ROOT_DIR}/certbot/conf"
 
 docker compose run --rm --entrypoint certbot certbot certonly \
   --webroot \
