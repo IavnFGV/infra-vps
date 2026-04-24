@@ -287,6 +287,35 @@ if [[ "${found_services}" == "false" ]]; then
     log "No service registry files found in ${SERVICES_DIR}"
 fi
 
+# Remove configs for services no longer in registry
+log "Checking for removed services"
+for config_file in "${NGINX_SITES_DIR}"/*.conf; do
+    if [[ ! -f "${config_file}" ]]; then
+        continue
+    fi
+
+    config_name=$(basename "${config_file}" .conf)
+    
+    # Skip default configs
+    if [[ "${config_name}" == "_default" ]]; then
+        continue
+    fi
+    
+    # Check if service still exists in registry
+    registry_file="${SERVICES_DIR}/${config_name}.env"
+    if [[ ! -f "${registry_file}" ]]; then
+        log "Removing config for removed service: ${config_name}"
+        rm -f "${config_file}"
+        
+        # Optionally remove certificate if it exists
+        cert_dir="${ROOT_DIR}/certbot/conf/live/${config_name}"
+        if [[ -d "${cert_dir}" ]]; then
+            log "Removing certificate for removed service: ${config_name}"
+            rm -rf "${cert_dir}"
+        fi
+    fi
+done
+
 log "Final nginx config test"
 docker compose exec nginx nginx -t
 

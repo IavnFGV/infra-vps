@@ -12,6 +12,16 @@ This infrastructure uses a GitOps approach for managing services. All service co
 
 4. **Automatic Deployment**: GitHub Actions deploys to the VPS, running `apply-services.sh` to generate nginx configs, issue certificates, and reload nginx.
 
+## Service Removal
+
+To remove a service:
+
+1. **Local Removal**: Use `python3 scripts/remove-service-wizard.py` to delete the service registry file locally.
+
+2. **Commit and Push**: Add the removal to Git, commit, and push to `main`.
+
+3. **Automatic Removal**: GitHub Actions deploys to the VPS, running `apply-services.sh` which detects removed services and deletes their nginx configs, certificates, and reloads nginx.
+
 ## Master Key Management
 
 - **Server Location**: `/opt/infra-secrets/master.key`
