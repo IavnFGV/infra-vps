@@ -1,0 +1,19 @@
+version: "3.9"
+
+services:
+  app:
+    image: my-bot-image:latest
+    restart: unless-stopped
+    expose:
+      - "8080"
+    volumes:
+      - /ABSOLUTE/PATH/TO/infra-vps-minimal/data/bot-static/bot1:/app/public-static
+    networks:
+      edge:
+        aliases:
+          - bot1-app
+
+networks:
+  edge:
+    external: true
+    name: edge

@@ -1,0 +1,24 @@
+# OS garbage
+.DS_Store
+Thumbs.db
+*Zone.Identifier
+
+# Local env
+.env
+*.local
+
+# Certbot runtime data
+certbot/conf/
+certbot/www/
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+*.tmp
+
+# Editor
+.vscode/
+.idea/
