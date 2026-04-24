@@ -23,7 +23,25 @@ log() {
 
 # Decrypt function
 decrypt_value() {
-    ./scripts/decrypt-value.sh "$1"
+    local encrypted="$1"
+    local label="${2:-value}"
+
+    if [[ -z "${encrypted}" ]]; then
+        log "Decrypt ${label}: no value provided"
+        echo ""
+        return
+    fi
+
+    if [[ "${encrypted}" == enc:* ]]; then
+        log "Decrypt ${label}: encrypted value detected, decoding"
+        local decoded
+        decoded=$(./scripts/decrypt-value.sh "${encrypted}")
+        log "Decrypt ${label}: successfully decoded"
+        echo "${decoded}"
+    else
+        log "Decrypt ${label}: value is plaintext, no decoding needed"
+        echo "${encrypted}"
+    fi
 }
 
 # Validate required variables
@@ -154,7 +172,7 @@ issue_certificate() {
 
     local cert_path="${ROOT_DIR}/certbot/conf/live/${domain}/fullchain.pem"
     if [[ -f "${cert_path}" ]]; then
-        log "Certificate already exists for ${domain}"
+        log "Certificate already exists for ${domain} at ${cert_path}"
         return
     fi
 
@@ -166,6 +184,13 @@ issue_certificate() {
         --agree-tos \
         --no-eff-email \
         -d "${domain}"
+
+    if [[ $? -eq 0 ]]; then
+        log "Certificate successfully issued for ${domain}, saved to ${cert_path}"
+    else
+        log "Certificate issuance failed for ${domain}"
+        exit 1
+    fi
 }
 
 log "Starting apply-services.sh"
@@ -187,8 +212,8 @@ for service_file in "${SERVICES_DIR}"/*.env; do
     source "${service_file}"
 
     # Decrypt values
-    LETSENCRYPT_EMAIL=$(decrypt_value "${LETSENCRYPT_EMAIL:-}")
-    STATIC_SECRET=$(decrypt_value "${STATIC_SECRET:-}")
+    LETSENCRYPT_EMAIL=$(decrypt_value "${LETSENCRYPT_EMAIL:-}" "LETSENCRYPT_EMAIL")
+    STATIC_SECRET=$(decrypt_value "${STATIC_SECRET:-}" "STATIC_SECRET")
 
     # Validate
     validate_service "${service_name}"
