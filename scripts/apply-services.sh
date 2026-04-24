@@ -23,13 +23,7 @@ log() {
 
 # Decrypt function
 decrypt_value() {
-    local encrypted="$1"
-    if [[ "${encrypted}" == enc:* ]]; then
-        local ciphertext="${encrypted#enc:}"
-        echo "${ciphertext}" | openssl enc -d -aes-256-cbc -pbkdf2 -salt -base64 -A -pass "file:${KEY_FILE}"
-    else
-        echo "${encrypted}"
-    fi
+    ./scripts/decrypt-value.sh "$1"
 }
 
 # Validate required variables

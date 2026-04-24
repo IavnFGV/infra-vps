@@ -23,6 +23,8 @@ fi
 
 # Generate a random 32-byte base64 key
 openssl rand -base64 32 > "${KEY_FILE}"
+sudo chown -R deploy:deploy /opt/infra-secrets
+sudo chmod 700 /opt/infra-secrets
 chmod 600 "${KEY_FILE}"
 
 echo "Master key created at ${KEY_FILE}"
