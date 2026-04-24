@@ -187,7 +187,11 @@ issue_certificate_if_needed() {
     fi
 
     log "Issuing certificate for ${domain}"
-    ./scripts/issue-cert.sh "${domain}" "${email}"
+
+    if ! ./scripts/issue-cert.sh "${domain}" "${email}" 2>&1 | tee -a "${LOG_FILE}"; then
+        log "ERROR: certificate issuance command failed for ${domain}"
+        exit 1
+    fi
 
     if [[ ! -f "${cert_path}" ]]; then
         log "ERROR: certificate file was not created: ${cert_path}"

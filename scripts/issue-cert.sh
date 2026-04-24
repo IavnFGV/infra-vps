@@ -14,19 +14,24 @@ EMAIL="$2"
 WEBROOT_DIR="${ROOT_DIR}/certbot/www"
 
 fix_webroot_permissions() {
-  mkdir -p "${WEBROOT_DIR}/.well-known/acme-challenge"
+  if [[ ! -d "${WEBROOT_DIR}" ]]; then
+    mkdir -p "${WEBROOT_DIR}"
+  fi
 
   if [[ ! -w "${WEBROOT_DIR}" ]]; then
-    echo "Fixing certbot webroot owner: ${WEBROOT_DIR}"
+    echo "Fixing certbot webroot permissions: ${WEBROOT_DIR}"
     sudo chown -R "$(id -u):$(id -g)" "${WEBROOT_DIR}"
   fi
 
+  mkdir -p "${WEBROOT_DIR}/.well-known/acme-challenge"
   chmod -R u+rwX,go+rX "${WEBROOT_DIR}"
 }
 
 fix_cert_permissions() {
-  if [[ -d "${ROOT_DIR}/certbot/conf/live/${DOMAIN}" ]]; then
-    chmod -R u+rwX,g+rX,o-rwx "${ROOT_DIR}/certbot/conf/live/${DOMAIN}" || true
+  local live_dir="${ROOT_DIR}/certbot/conf/live/${DOMAIN}"
+
+  if [[ -d "${live_dir}" ]]; then
+    chmod -R u+rwX,g+rX,o-rwx "${live_dir}" 2>/dev/null || true
   fi
 }
 
