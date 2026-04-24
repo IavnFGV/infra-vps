@@ -21,25 +21,18 @@ log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $*" | tee -a "${LOG_FILE}"
 }
 
-# Decrypt function
+# Decrypt function (no logging to avoid stdout pollution)
 decrypt_value() {
     local encrypted="$1"
-    local label="${2:-value}"
 
     if [[ -z "${encrypted}" ]]; then
-        log "Decrypt ${label}: no value provided"
         echo ""
         return
     fi
 
     if [[ "${encrypted}" == enc:* ]]; then
-        log "Decrypt ${label}: encrypted value detected, decoding"
-        local decoded
-        decoded=$(./scripts/decrypt-value.sh "${encrypted}")
-        log "Decrypt ${label}: successfully decoded"
-        echo "${decoded}"
+        ./scripts/decrypt-value.sh "${encrypted}"
     else
-        log "Decrypt ${label}: value is plaintext, no decoding needed"
         echo "${encrypted}"
     fi
 }
@@ -211,9 +204,18 @@ for service_file in "${SERVICES_DIR}"/*.env; do
     # shellcheck disable=SC1090
     source "${service_file}"
 
-    # Decrypt values
-    LETSENCRYPT_EMAIL=$(decrypt_value "${LETSENCRYPT_EMAIL:-}" "LETSENCRYPT_EMAIL")
-    STATIC_SECRET=$(decrypt_value "${STATIC_SECRET:-}" "STATIC_SECRET")
+    # Decrypt values with logging
+    log "Decrypting LETSENCRYPT_EMAIL"
+    LETSENCRYPT_EMAIL=$(decrypt_value "${LETSENCRYPT_EMAIL:-}")
+    if [[ -n "${LETSENCRYPT_EMAIL}" ]]; then
+        log "LETSENCRYPT_EMAIL: decrypted successfully"
+    fi
+
+    log "Decrypting STATIC_SECRET"
+    STATIC_SECRET=$(decrypt_value "${STATIC_SECRET:-}")
+    if [[ -n "${STATIC_SECRET}" ]]; then
+        log "STATIC_SECRET: decrypted successfully"
+    fi
 
     # Validate
     validate_service "${service_name}"

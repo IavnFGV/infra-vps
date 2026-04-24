@@ -5,7 +5,7 @@ set -euo pipefail
 # Usage: ./scripts/encrypt-value.sh "plaintext-value"
 
 if [[ $# -ne 1 ]]; then
-    echo "Usage: $0 <plaintext-value>"
+    echo "Usage: $0 <plaintext-value>" >&2
     exit 1
 fi
 
@@ -16,8 +16,8 @@ DEFAULT_KEY_FILE="${HOME}/.infra-vps-master.key"
 KEY_FILE="${INFRA_MASTER_KEY_FILE:-${DEFAULT_KEY_FILE}}"
 
 if [[ ! -f "${KEY_FILE}" ]]; then
-    echo "Error: Master key file not found at ${KEY_FILE}"
-    echo "Please ensure the master key exists or set INFRA_MASTER_KEY_FILE."
+    echo "Error: Master key file not found at ${KEY_FILE}" >&2
+    echo "Please ensure the master key exists or set INFRA_MASTER_KEY_FILE." >&2
     exit 1
 fi
 
