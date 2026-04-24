@@ -13,29 +13,8 @@ DOMAIN="$1"
 EMAIL="$2"
 WEBROOT_DIR="${ROOT_DIR}/certbot/www"
 
-fix_webroot_permissions() {
-  if [[ ! -d "${WEBROOT_DIR}" ]]; then
-    mkdir -p "${WEBROOT_DIR}"
-  fi
-
-  if [[ ! -w "${WEBROOT_DIR}" ]]; then
-    echo "Fixing certbot webroot permissions: ${WEBROOT_DIR}"
-    sudo chown -R "$(id -u):$(id -g)" "${WEBROOT_DIR}"
-  fi
-
-  mkdir -p "${WEBROOT_DIR}/.well-known/acme-challenge"
-  chmod -R u+rwX,go+rX "${WEBROOT_DIR}"
-}
-
-fix_cert_permissions() {
-  local live_dir="${ROOT_DIR}/certbot/conf/live/${DOMAIN}"
-
-  if [[ -d "${live_dir}" ]]; then
-    chmod -R u+rwX,g+rX,o-rwx "${live_dir}" 2>/dev/null || true
-  fi
-}
-
-fix_webroot_permissions
+mkdir -p "${WEBROOT_DIR}/.well-known/acme-challenge"
+chmod -R u+rwX,go+rX "${WEBROOT_DIR}"
 
 docker compose run --rm --entrypoint certbot certbot certonly \
   --webroot \
@@ -43,8 +22,8 @@ docker compose run --rm --entrypoint certbot certbot certonly \
   --email "${EMAIL}" \
   --agree-tos \
   --no-eff-email \
+  --non-interactive \
+  --keep-until-expiring \
   -d "${DOMAIN}"
-
-fix_cert_permissions
 
 echo "Certificate issued for ${DOMAIN}."
