@@ -22,6 +22,8 @@ services:
     volumes:
       - ./certbot/conf:/etc/letsencrypt
       - ./certbot/www:/var/www/certbot
+      - ./certbot/work:/var/www/certbot-work
+      - ./certbot/logs:/var/www/certbot-logs
     networks:
       - edge
     entrypoint: /bin/sh
