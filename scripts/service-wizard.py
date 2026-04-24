@@ -6,12 +6,14 @@ from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 SCRIPTS_DIR = ROOT_DIR / "scripts"
+REGISTRY_DIR = ROOT_DIR / "registry" / "services"
 
 
-def run(command: list[str]) -> None:
+def run(command: list[str]) -> str:
     print()
     print(f"> {' '.join(command)}")
-    subprocess.run(command, cwd=ROOT_DIR, check=True)
+    result = subprocess.run(command, cwd=ROOT_DIR, check=True, capture_output=True, text=True)
+    return result.stdout.strip()
 
 
 def ask(prompt: str, default: str | None = None) -> str:
@@ -26,7 +28,7 @@ def ask(prompt: str, default: str | None = None) -> str:
 
 
 def yes(value: str) -> bool:
-    return value.strip().lower() in {"y", "yes", "д", "да"}
+    return value.strip().lower() in {"y", "yes"}
 
 
 def script(name: str) -> str:
@@ -36,52 +38,76 @@ def script(name: str) -> str:
     return str(path)
 
 
+def encrypt_value(plaintext: str) -> str:
+    return run([script("encrypt-value.sh"), plaintext])
+
+
 def main() -> None:
-    print("Service onboarding wizard")
+    print("Service registration wizard (GitOps mode)")
+    print("This will create a service registry file locally.")
+    print("After creation, commit and push to apply on the server.")
 
-    site_name = ask("Site name, for example hello")
-    domain = ask("Domain, for example hello-178-104-218-159.nip.io")
-    upstream_host = ask("Upstream docker network alias, for example hello-app")
+    service_name = ask("Service name, for example hello-test")
+    domain = ask("Domain, for example hello-test-178-104-218-159.nip.io")
+    upstream_host = ask("Upstream docker network alias, for example hello-test-app")
     upstream_port = ask("Upstream port", "80")
-    enable_https = ask("Issue certificate and enable HTTPS? yes/no", "yes")
 
-    run([
-        script("add-site.sh"),
-        site_name,
-        domain,
-        upstream_host,
-        upstream_port,
-    ])
+    enable_https_input = ask("Enable HTTPS? yes/no", "yes")
+    enable_https = yes(enable_https_input)
 
-    run([script("check-nginx.sh")])
-    run([script("reload-nginx.sh")])
+    letsencrypt_email = ""
+    if enable_https:
+        letsencrypt_email_plain = ask("Let's Encrypt email (plaintext, will be encrypted)")
+        letsencrypt_email = encrypt_value(letsencrypt_email_plain)
 
-    if yes(enable_https):
-        email = ask("Let's Encrypt email")
+    static_enabled_input = ask("Enable static file serving? yes/no", "no")
+    static_enabled = yes(static_enabled_input)
 
-        run([
-            script("issue-cert.sh"),
-            domain,
-            email,
-        ])
+    static_public_prefix = ""
+    static_secret = ""
+    static_secret_encrypted = ""
+    static_dir = ""
+    if static_enabled:
+        static_public_prefix = ask("Static public prefix", "/static")
+        static_secret_plain = ask("Static secret (plaintext, will be encrypted)")
+        static_secret_encrypted = encrypt_value(static_secret_plain)
+        static_dir = ask("Static directory path", f"/srv/service-static/{service_name}")
 
-        run([
-            script("enable-https.sh"),
-            site_name,
-            domain,
-            upstream_host,
-            upstream_port,
-        ])
+    # Create registry directory if not exists
+    REGISTRY_DIR.mkdir(parents=True, exist_ok=True)
 
-        run([script("check-nginx.sh")])
-        run([script("reload-nginx.sh")])
+    # Create env file
+    env_file = REGISTRY_DIR / f"{service_name}.env"
+    if env_file.exists():
+        raise FileExistsError(f"Service registry file already exists: {env_file}")
+
+    with open(env_file, "w") as f:
+        f.write(f"SERVICE_NAME={service_name}\n")
+        f.write(f"DOMAIN={domain}\n")
+        f.write(f"UPSTREAM_HOST={upstream_host}\n")
+        f.write(f"UPSTREAM_PORT={upstream_port}\n")
+        f.write("\n")
+        f.write(f"ENABLE_HTTPS={str(enable_https).lower()}\n")
+        if enable_https:
+            f.write(f"LETSENCRYPT_EMAIL={letsencrypt_email}\n")
+        f.write("\n")
+        f.write(f"STATIC_ENABLED={str(static_enabled).lower()}\n")
+        if static_enabled:
+            f.write(f"STATIC_PUBLIC_PREFIX={static_public_prefix}\n")
+            f.write(f"STATIC_SECRET={static_secret_encrypted}\n")
+            f.write(f"STATIC_DIR={static_dir}\n")
 
     print()
-    print("Done.")
-    print(f"HTTP:  http://{domain}")
-
-    if yes(enable_https):
-        print(f"HTTPS: https://{domain}")
+    print("Service registry file created:")
+    print(f"  {env_file}")
+    print()
+    print("Next steps:")
+    print("1. Ensure the service is running on the VPS in /opt/services/<service>")
+    print("2. The service should be connected to the 'edge' docker network with alias as specified.")
+    print("3. Run: git add registry/services/")
+    print("4. Run: git commit -m 'Add service <service_name>'")
+    print("5. Run: git push")
+    print("6. GitHub Actions will apply the service on the server.")
 
 
 if __name__ == "__main__":

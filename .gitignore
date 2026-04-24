@@ -19,6 +19,14 @@ logs/
 tmp/
 *.tmp
 
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
 # Editor
 .vscode/
 .idea/
+
+# Data
+data/
