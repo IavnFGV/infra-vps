@@ -33,9 +33,9 @@ Do not introduce Kubernetes, Traefik, Swarm, Ansible, Terraform, or any dynamic 
 - `networks.edge.external: true`
 - alias such as `bot1-app`, `teacherbot-app`, or `tts-api`
 
-## Static files model
+## Secret path model
 
-Static files may be served directly by Nginx through an unguessable secret path:
+An unguessable secret path may be used either for direct static file serving or as a hidden proxy entrypoint into an app:
 
 ```text
 /__static_<secret>/...

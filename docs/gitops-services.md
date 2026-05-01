@@ -54,6 +54,7 @@ ENABLE_HTTPS=true
 LETSENCRYPT_EMAIL=enc:ENCRYPTED_EMAIL_HERE
 
 STATIC_ENABLED=false
+PROXY_MODE=files
 STATIC_PUBLIC_PREFIX=/static
 STATIC_SECRET=enc:ENCRYPTED_SECRET_HERE
 STATIC_DIR=/srv/service-static/hello-test
@@ -61,7 +62,11 @@ STATIC_DIR=/srv/service-static/hello-test
 
 - `LETSENCRYPT_EMAIL` and `STATIC_SECRET` must be encrypted if present.
 - `STATIC_SECRET` is required if `STATIC_ENABLED=true`.
-- `STATIC_DIR` is not a secret.
+- `PROXY_MODE` supports `files`, `proxy`, and `both`.
+- `STATIC_MODE` is still accepted as a legacy fallback for backward compatibility.
+- `STATIC_DIR` is required when `PROXY_MODE=files` or `PROXY_MODE=both`.
+- With `PROXY_MODE=proxy`, requests to `<STATIC_PUBLIC_PREFIX>/<STATIC_SECRET>/...` are proxied to the app upstream with the secret prefix stripped.
+- With `PROXY_MODE=both`, Nginx first tries to serve a file from `STATIC_DIR`; if nothing matches, it proxies the request to the app upstream with the secret prefix stripped.
 
 ## Example Service docker-compose.yml
 

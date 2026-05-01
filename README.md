@@ -6,7 +6,7 @@ This repository provides a small and explicit infrastructure layer for a single 
 - centralized TLS with Certbot
 - one external Docker network named `edge`
 - several independent bot repositories deployed separately
-- optional secret static path for files served by Nginx
+- optional secret path that either serves files directly or proxies into an app
 
 ## Main idea
 

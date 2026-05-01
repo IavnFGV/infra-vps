@@ -31,6 +31,13 @@ def yes(value: str) -> bool:
     return value.strip().lower() in {"y", "yes"}
 
 
+def proxy_mode(value: str) -> str:
+    normalized = value.strip().lower()
+    if normalized not in {"files", "proxy", "both"}:
+        raise ValueError("Proxy mode must be one of 'files', 'proxy', or 'both'")
+    return normalized
+
+
 def script(name: str) -> str:
     path = SCRIPTS_DIR / name
     if not path.exists():
@@ -63,15 +70,16 @@ def main() -> None:
     static_enabled_input = ask("Enable static file serving? yes/no", "no")
     static_enabled = yes(static_enabled_input)
 
-    static_public_prefix = ""
-    static_secret = ""
+    proxy_mode_value = ""
     static_secret_encrypted = ""
     static_dir = ""
     if static_enabled:
+        proxy_mode_value = proxy_mode(ask("Proxy mode: files, proxy, or both", "files"))
         static_public_prefix = ask("Static public prefix", "/static")
         static_secret_plain = ask("Static secret (plaintext, will be encrypted)")
         static_secret_encrypted = encrypt_value(static_secret_plain)
-        static_dir = ask("Static directory path", f"/srv/service-static/{service_name}")
+        if proxy_mode_value in {"files", "both"}:
+            static_dir = ask("Static directory path", f"/srv/service-static/{service_name}")
 
     # Create registry directory if not exists
     REGISTRY_DIR.mkdir(parents=True, exist_ok=True)
@@ -93,9 +101,11 @@ def main() -> None:
         f.write("\n")
         f.write(f"STATIC_ENABLED={str(static_enabled).lower()}\n")
         if static_enabled:
+            f.write(f"PROXY_MODE={proxy_mode_value}\n")
             f.write(f"STATIC_PUBLIC_PREFIX={static_public_prefix}\n")
             f.write(f"STATIC_SECRET={static_secret_encrypted}\n")
-            f.write(f"STATIC_DIR={static_dir}\n")
+            if proxy_mode_value in {"files", "both"}:
+                f.write(f"STATIC_DIR={static_dir}\n")
 
     print()
     print("Service registry file created:")
