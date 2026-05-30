@@ -49,6 +49,16 @@ This will:
 - install `/usr/local/bin/wg-add-client`
 - install `qrencode` for client QR output
 
+If you want to fully rebuild WireGuard from scratch on an already used server:
+
+```bash
+sudo SERVER_PUBLIC_IP=YOUR_HETZNER_IP \
+  bash /workspaces/infra-vps/scripts/reset-wireguard.sh
+```
+
+This stops `wg0`, backs up the current `/etc/wireguard`, removes the old state,
+and recreates the server config from zero.
+
 ## 5. Verify WireGuard
 
 ```bash

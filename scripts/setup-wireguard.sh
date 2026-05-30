@@ -52,6 +52,13 @@ if [[ -f "${SERVER_CONF}" && "${FORCE}" != "1" ]]; then
   exit 1
 fi
 
+if [[ "${FORCE}" == "1" ]]; then
+  echo "[2a] Resetting existing WireGuard state..."
+  systemctl stop "wg-quick@${WG_IFACE}" >/dev/null 2>&1 || true
+  rm -rf "${WG_DIR}"
+  mkdir -p "${WG_DIR}"
+fi
+
 echo "[3/8] Generating fresh WireGuard server keys..."
 umask 077
 wg genkey | tee "${SERVER_PRIVATE_KEY_FILE}" | wg pubkey > "${SERVER_PUBLIC_KEY_FILE}"
