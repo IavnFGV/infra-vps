@@ -44,7 +44,7 @@ if [[ -z "${CLIENT_NAME}" ]]; then
 fi
 
 USED_IPS="$(
-  grep '^AllowedIPs = ' "${SERVER_CONF}" | awk '{print $3}' | cut -d'/' -f1 | sed 's/.*\.//'
+  grep '^AllowedIPs = ' "${SERVER_CONF}" 2>/dev/null | awk '{print $3}' | cut -d'/' -f1 | sed 's/.*\.//' || true
 )"
 NEXT_IP=100
 while echo "${USED_IPS}" | grep -q "\b${NEXT_IP}\b"; do
