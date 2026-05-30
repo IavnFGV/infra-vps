@@ -27,7 +27,9 @@ If the repo is private, use the access method you normally use.
 sudo bash /workspaces/infra-vps/scripts/setup-server.sh
 ```
 
-This installs Docker and Docker Compose.
+This installs Docker and Docker Compose, creates `deploy`, copies the current
+SSH key from `root` to `deploy`, grants passwordless `sudo`, disables SSH
+password login, and disables SSH login for `root`.
 
 ## 4. Create a fresh WireGuard server
 
@@ -61,21 +63,12 @@ Expected result:
 - WireGuard listens on UDP `51820`
 - NAT rules exist for the detected uplink interface
 
-## 6. Start infra stack
-
-```bash
-cd /workspaces/infra-vps
-./scripts/init-edge-network.sh
-docker compose up -d
-./scripts/check-nginx.sh
-```
-
 ## 6. Add clients again
 
 Add each client as needed:
 
 ```bash
-sudo /usr/local/bin/wg-add-client
+/usr/local/bin/wg-add-client
 ```
 
 The script creates a client config in `/etc/wireguard/clients/` and prints a QR
