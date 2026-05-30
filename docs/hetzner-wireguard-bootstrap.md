@@ -47,6 +47,7 @@ This will:
 - enable IP forwarding
 - enable and start `wg-quick@wg0`
 - install `/usr/local/bin/wg-add-client`
+- install `qrencode` for client QR output
 
 ## 5. Verify WireGuard
 

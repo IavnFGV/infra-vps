@@ -74,14 +74,14 @@ if [[ -f "${TEMPLATE_DIR}/wg_add_client.sh" ]]; then
   install -m 0755 "${TEMPLATE_DIR}/wg_add_client.sh" /usr/local/bin/wg-add-client
 fi
 
-cat >"${WG_DIR}/.server-meta" <<EOF
-WG_IFACE=${WG_IFACE}
-VPN_SUBNET=${VPN_SUBNET}
-SERVER_VPN_IP=${SERVER_VPN_IP}
-WG_PORT=${WG_PORT}
-SERVER_PUBLIC_IP=${SERVER_PUBLIC_IP}
-CLIENT_DNS=${CLIENT_DNS}
-EOF
+{
+  printf 'WG_IFACE=%q\n' "${WG_IFACE}"
+  printf 'VPN_SUBNET=%q\n' "${VPN_SUBNET}"
+  printf 'SERVER_VPN_IP=%q\n' "${SERVER_VPN_IP}"
+  printf 'WG_PORT=%q\n' "${WG_PORT}"
+  printf 'SERVER_PUBLIC_IP=%q\n' "${SERVER_PUBLIC_IP}"
+  printf 'CLIENT_DNS=%q\n' "${CLIENT_DNS}"
+} >"${WG_DIR}/.server-meta"
 
 echo "[6/8] Setting permissions and sysctl..."
 chmod 700 "${WG_DIR}"
