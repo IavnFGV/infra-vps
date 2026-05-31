@@ -18,9 +18,10 @@ Dockge and attached to `edge` with stable aliases that match the registry.
 1. Clone the repo to `/opt/infra-vps`.
 2. Run `sudo bash scripts/setup-server.sh` on a fresh node.
 3. Run `sudo SERVER_PUBLIC_IP=<server-ip> bash scripts/setup-wireguard.sh`.
-4. Create the shared Docker network with `./scripts/init-edge-network.sh`.
-5. Start the infra stack with `docker compose up -d`.
-6. Validate `nginx` with `./scripts/check-nginx.sh`.
+4. Restore the existing registry master key or create a new one.
+5. Run `sudo bash scripts/install-scheduled-tasks.sh`.
+6. Run `sudo bash scripts/setup-node-layout.sh`.
+7. Start the infra stack with `./scripts/deploy-infra.sh`.
 
 From there:
 
@@ -32,3 +33,5 @@ From there:
 
 See [docs/overview.md](/workspaces/infra-vps/docs/overview.md) for the target
 layout and operating model.
+For the exact rebuild sequence on a new server, use
+[docs/canonical-node-bootstrap.md](/workspaces/infra-vps/docs/canonical-node-bootstrap.md).

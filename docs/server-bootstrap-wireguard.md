@@ -1,23 +1,22 @@
-# Hetzner node bootstrap with WireGuard
+# Server bootstrap with WireGuard
 
-This is the canonical order for bringing up a fresh Hetzner Ubuntu node for
+This is the canonical order for bringing up a fresh Ubuntu server for
 this repo, with WireGuard on the host, Dockge for compose stacks, and this repo
 owning ingress and TLS.
 
-## 1. Create the server
+## 1. Prepare the server
 
-- Create a new Ubuntu VPS in Hetzner.
+- Create a new Ubuntu server.
 - Open inbound `22/tcp`, `80/tcp`, `443/tcp`, `51820/udp`.
 - Attach your SSH key during server creation.
 
 ## 2. Login and clone the repo
 
 ```bash
-ssh root@YOUR_HETZNER_IP
+ssh root@YOUR_SERVER_IP
 apt-get update
 apt-get install -y git
 git clone <YOUR_REPO_URL> /opt/infra-vps
-cd /opt/infra-vps
 ```
 
 If the repo is private, use the access method you normally use.
@@ -35,8 +34,8 @@ password login, and disables SSH login for `root`.
 ## 4. Create a fresh WireGuard server
 
 ```bash
-sudo SERVER_PUBLIC_IP=YOUR_HETZNER_IP \
-  bash /workspaces/infra-vps/scripts/setup-wireguard.sh
+sudo SERVER_PUBLIC_IP=YOUR_SERVER_IP \
+  bash /opt/infra-vps/scripts/setup-wireguard.sh
 ```
 
 This will:
@@ -53,8 +52,8 @@ This will:
 If you want to fully rebuild WireGuard from scratch on an already used server:
 
 ```bash
-sudo SERVER_PUBLIC_IP=YOUR_HETZNER_IP \
-  bash /workspaces/infra-vps/scripts/reset-wireguard.sh
+sudo SERVER_PUBLIC_IP=YOUR_SERVER_IP \
+  bash /opt/infra-vps/scripts/reset-wireguard.sh
 ```
 
 This stops `wg0`, backs up the current `/etc/wireguard`, removes the old state,
@@ -89,43 +88,49 @@ code if `qrencode` is installed.
 ## 7. Restore the registry master key
 
 If you already have encrypted values in `registry/services/*.env`, copy the
-existing key from the old node before applying services:
+existing key from the old node to the new server and restore it:
 
 ```bash
-install -d -m 700 /opt/infra-secrets
-scp deploy@OLD_SERVER_IP:/opt/infra-secrets/master.key /opt/infra-secrets/master.key
-chmod 600 /opt/infra-secrets/master.key
+scp deploy@OLD_SERVER_IP:/opt/infra-secrets/master.key /tmp/infra-vps-master.key
+sudo bash /opt/infra-vps/scripts/restore-master-key.sh /tmp/infra-vps-master.key
 ```
 
 If this is a brand new environment with no existing encrypted registry values:
 
 ```bash
-./scripts/create-master-key.sh
+sudo bash /opt/infra-vps/scripts/create-master-key.sh
 ```
 
-## 8. Start infra stack
+## 8. Install repo-managed scheduled tasks
+
+```bash
+sudo bash /opt/infra-vps/scripts/install-scheduled-tasks.sh
+```
+
+This installs the repo-managed cron sync and applies the current tasks from
+`scheduled-tasks/`.
+
+## 9. Prepare the node layout
+
+```bash
+sudo bash /opt/infra-vps/scripts/setup-node-layout.sh
+```
+
+This prepares the canonical directories for Dockge stacks and service data.
+
+## 10. Start infra stack
 
 ```bash
 cd /opt/infra-vps
-./scripts/init-edge-network.sh
-docker compose up -d
-./scripts/check-nginx.sh
+./scripts/deploy-infra.sh
 ```
 
-## 9. Install Dockge and create stack storage
-
-Create the canonical directories now, even if you install Dockge later:
-
-```bash
-mkdir -p /opt/dockge/stacks
-mkdir -p /srv/services
-mkdir -p /srv/service-static
-```
+## 11. Install Dockge
 
 Install Dockge using the method you prefer, but keep its stacks under
 `/opt/dockge/stacks`.
 
-## 10. Migrate services safely
+## 12. Migrate services safely
 
 Use this order:
 
@@ -141,7 +146,7 @@ Use this order:
 
 This keeps `nginx`, TLS, VPN, and application rollout separated.
 
-## 11. Optional Google Drive sync
+## 13. Optional Google Drive sync
 
 If you want a simple push-only sync folder for exports, backups, and convenience
 copies:
@@ -154,7 +159,7 @@ This creates `/srv/drive-sync`, installs the `rclone` helper, and sets up a
 scheduled task that pushes local files to Google Drive. See
 [docs/google-drive-sync.md](/workspaces/infra-vps/docs/google-drive-sync.md).
 
-## 12. Keep it reproducible
+## 14. Keep it reproducible
 
 When WireGuard changes later:
 

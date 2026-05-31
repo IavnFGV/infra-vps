@@ -1,5 +1,8 @@
 # Bootstrap
 
+For the exact rebuild and migration sequence on a new node, use
+[canonical-node-bootstrap.md](/workspaces/infra-vps/docs/canonical-node-bootstrap.md).
+
 ## Prerequisites on VPS
 
 - Docker Engine
@@ -11,9 +14,10 @@
 
 ```bash
 sudo bash scripts/setup-server.sh
-./scripts/init-edge-network.sh
-docker compose up -d
-./scripts/check-nginx.sh
+sudo SERVER_PUBLIC_IP=<server-ip> bash scripts/setup-wireguard.sh
+sudo bash scripts/install-scheduled-tasks.sh
+sudo bash scripts/setup-node-layout.sh
+./scripts/deploy-infra.sh
 ```
 
 ## Result
@@ -23,4 +27,5 @@ After this step:
 - shared Docker network `edge` exists
 - Nginx listens on `80` and `443`
 - Certbot webroot is mounted
+- repo-managed scheduled tasks are installed
 - the node is ready for Dockge-managed stacks to join `edge`

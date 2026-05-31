@@ -70,5 +70,8 @@ Every published stack must:
 This repo is the source of truth for public exposure, not for application
 runtime state.
 
+For the exact node rebuild sequence, see
+[canonical-node-bootstrap.md](/workspaces/infra-vps/docs/canonical-node-bootstrap.md).
+
 For optional convenience sync to Google Drive, see
 [docs/google-drive-sync.md](/workspaces/infra-vps/docs/google-drive-sync.md).
