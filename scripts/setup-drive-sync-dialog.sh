@@ -67,7 +67,7 @@ echo
 
 DRIVE_REMOTE="$(ask_with_default "rclone remote name" "gdrive")"
 echo
-DRIVE_PATH="$(ask_with_default "Google Drive path" "server-files/infra-vps")"
+DRIVE_PATH="$(ask_with_default "Google Drive path" "server-files")"
 echo
 LOCAL_SYNC_ROOT="$(ask_with_default "Local sync root" "/srv/drive-sync")"
 echo
