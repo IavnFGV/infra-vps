@@ -18,9 +18,7 @@ services:
   certbot:
     image: certbot/certbot:latest
     profiles: ["ops"]
-    user: "1001:1001"
-    # be aware -  this ids are hardcoded  as on current server "deploy" user has 1001 uid and gid,
-    #  if you change that, you need to change it here as well
+    user: "${CERTBOT_UID:-1000}:${CERTBOT_GID:-1000}"
     volumes:
       - ./certbot/conf:/etc/letsencrypt
       - ./certbot/www:/var/www/certbot
