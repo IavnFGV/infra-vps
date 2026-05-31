@@ -58,3 +58,25 @@ Full rebuild:
 ```bash
 sudo SERVER_PUBLIC_IP=<server-ip> bash scripts/reset-wireguard.sh
 ```
+
+## Google Drive sync lifecycle
+
+Bootstrap:
+
+```bash
+sudo DRIVE_REMOTE=gdrive \
+  DRIVE_PATH='Server Files/infra-vps' \
+  bash scripts/setup-drive-sync.sh
+```
+
+Run a sync now:
+
+```bash
+sudo /usr/local/bin/drive-sync-push
+```
+
+Check sync logs:
+
+```bash
+journalctl -u drive-sync-push.service -n 100 --no-pager
+```

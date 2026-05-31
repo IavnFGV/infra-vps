@@ -10,6 +10,7 @@ Keep one VPS setup simple and boring:
 - compose stacks managed outside this repo
 - host-based routing by subdomain
 - no Kubernetes, no Swarm, no Traefik, no Ansible
+- one optional push-only Google Drive sync folder for exports and convenience
 
 ## Ownership split
 
@@ -41,6 +42,8 @@ Uptime Kuma owns:
 - `scripts/apply-services.sh` - registry to nginx compiler
 - `scripts/setup-server.sh` - baseline node bootstrap
 - `scripts/setup-wireguard.sh` - host VPN bootstrap
+- `scripts/setup-drive-sync.sh` - Google Drive sync bootstrap
+- `scripts/drive-sync-push.sh` - push-only `rclone` helper
 
 ## Contract with application stacks
 
@@ -63,3 +66,6 @@ Every published stack must:
 
 This repo is the source of truth for public exposure, not for application
 runtime state.
+
+For optional convenience sync to Google Drive, see
+[docs/google-drive-sync.md](/workspaces/infra-vps/docs/google-drive-sync.md).

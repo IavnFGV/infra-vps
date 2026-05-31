@@ -8,6 +8,7 @@ Suggested layout on the VPS:
 /opt/dockge/stacks
 /srv/services
 /srv/service-static
+/srv/drive-sync
 /opt/infra-secrets
 /etc/wireguard
 ```
@@ -19,6 +20,7 @@ Suggested layout on the VPS:
 - `/opt/dockge/stacks/<stack>` - compose stacks managed by Dockge
 - `/srv/services/<service>` - persistent application data
 - `/srv/service-static/<service>` - optional files for `STATIC_DIR`
+- `/srv/drive-sync/...` - push-only sync root for Google Drive exports and convenience copies
 - `/opt/infra-secrets/master.key` - registry encryption key
 - `/etc/wireguard` - host WireGuard state
 
@@ -27,6 +29,7 @@ Suggested layout on the VPS:
 - Keep application data out of the git repo.
 - Keep WireGuard state on the host only.
 - Keep `edge` as the single shared Docker network for published services.
+- Keep Google Drive sync as a local-folder push workflow, not a live mount.
 - If a service uses `PROXY_MODE=files` or `PROXY_MODE=both`, point
   `STATIC_DIR` at its directory under `/srv/service-static`.
 

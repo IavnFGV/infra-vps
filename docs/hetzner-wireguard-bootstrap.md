@@ -141,7 +141,22 @@ Use this order:
 
 This keeps `nginx`, TLS, VPN, and application rollout separated.
 
-## 11. Keep it reproducible
+## 11. Optional Google Drive sync
+
+If you want a simple push-only sync folder for exports, backups, and convenience
+copies:
+
+```bash
+sudo DRIVE_REMOTE=gdrive \
+  DRIVE_PATH='Server Files/infra-vps' \
+  bash /opt/infra-vps/scripts/setup-drive-sync.sh
+```
+
+This creates `/srv/drive-sync`, installs the `rclone` helper, and sets up a
+timer that pushes local files to Google Drive. See
+[docs/google-drive-sync.md](/workspaces/infra-vps/docs/google-drive-sync.md).
+
+## 12. Keep it reproducible
 
 When WireGuard changes later:
 
