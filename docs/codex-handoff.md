@@ -45,3 +45,48 @@ An unguessable secret path may be used either for direct static file serving or 
 
 This is obscurity, not authorization.
 Do not present it as real security.
+
+## Current host backup model
+
+Google Drive sync is configured as a push-only flow:
+
+- local sync root: `/srv/drive-sync`
+- Google Drive remote name: usually `gdrive`
+- Google Drive root path: usually `server-files`
+- source of truth stays local on the VPS
+
+Important split:
+
+- `scheduled-tasks/*.sh` prepare local backup copies into `/srv/drive-sync/...`
+- `scheduled-tasks/drive-sync-push-to-google.sh` runs `/usr/local/bin/drive-sync-push`
+- `rclone` is only the transport layer to Google Drive
+
+Current scheduled tasks model:
+
+- task script: `scheduled-tasks/<task>.sh`
+- task config: `scheduled-tasks/<task>.env`
+- task config fields:
+  - `ENABLED=true|false`
+  - `CRON_EXPR="*/5 * * * *"`
+- generated cron file on server: `/etc/cron.d/infra-vps-scheduled-tasks`
+- cron sync installer: `scripts/install-scheduled-tasks.sh`
+- cron sync engine: `scripts/sync-scheduled-tasks.sh`
+
+Current backup tasks:
+
+- `backup-wireguard-to-drive-sync`
+- `backup-master-key-to-drive-sync`
+- `drive-sync-push-to-google`
+
+Useful server commands:
+
+```bash
+sudo bash scripts/show-scheduled-tasks-status.sh
+cat /etc/cron.d/infra-vps-scheduled-tasks
+tail -n 100 /var/log/infra-vps-scheduled-tasks/drive-sync-push-to-google.log
+```
+
+Canonical docs for this area:
+
+- `docs/google-drive-sync.md`
+- `docs/operations.md`
