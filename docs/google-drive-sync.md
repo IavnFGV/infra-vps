@@ -179,15 +179,19 @@ Current example task:
 - `scheduled-tasks/drive-sync-push-to-google.env`
 - `scheduled-tasks/backup-wireguard-to-drive-sync.sh`
 - `scheduled-tasks/backup-wireguard-to-drive-sync.env`
+- `scheduled-tasks/backup-master-key-to-drive-sync.sh`
+- `scheduled-tasks/backup-master-key-to-drive-sync.env`
 
 This task copies:
 
 - `/etc/wireguard/wg0.conf`
 - `/etc/wireguard/clients/*.conf`
+- `/opt/infra-secrets/master.key`
 
 into:
 
 - `/srv/drive-sync/infra-vps/wireguard/`
+- `/srv/drive-sync/infra-vps/keys/master.key`
 
 Then the scheduled `drive-sync-push-to-google` task pushes those copied files
 to Google Drive.
