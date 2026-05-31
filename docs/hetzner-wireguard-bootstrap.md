@@ -151,7 +151,7 @@ sudo bash /opt/infra-vps/scripts/setup-drive-sync-dialog.sh
 ```
 
 This creates `/srv/drive-sync`, installs the `rclone` helper, and sets up a
-timer that pushes local files to Google Drive. See
+scheduled task that pushes local files to Google Drive. See
 [docs/google-drive-sync.md](/workspaces/infra-vps/docs/google-drive-sync.md).
 
 ## 12. Keep it reproducible

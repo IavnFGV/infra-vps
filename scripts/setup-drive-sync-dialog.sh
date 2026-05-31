@@ -71,7 +71,7 @@ DRIVE_PATH="$(ask_with_default "Google Drive path" "server-files")"
 echo
 LOCAL_SYNC_ROOT="$(ask_with_default "Local sync root" "/srv/drive-sync")"
 echo
-SYNC_INTERVAL="$(ask_with_default "Sync interval for systemd timer" "5min")"
+SYNC_CRON_EXPR="$(ask_with_default "Cron schedule for Google Drive push" "*/5 * * * *")"
 echo
 
 if ask_yes_no "Open 'sudo rclone config' after bootstrap if the remote is missing?" "y"; then
@@ -85,7 +85,7 @@ echo "Summary:"
 echo "  Remote: ${DRIVE_REMOTE}"
 echo "  Google Drive path: ${DRIVE_PATH}"
 echo "  Local sync root: ${LOCAL_SYNC_ROOT}"
-echo "  Sync interval: ${SYNC_INTERVAL}"
+echo "  Push cron: ${SYNC_CRON_EXPR}"
 echo
 
 if ! ask_yes_no "Continue with bootstrap?" "y"; then
@@ -98,7 +98,7 @@ log "Running bootstrap script"
 DRIVE_REMOTE="${DRIVE_REMOTE}" \
 DRIVE_PATH="${DRIVE_PATH}" \
 LOCAL_SYNC_ROOT="${LOCAL_SYNC_ROOT}" \
-SYNC_INTERVAL="${SYNC_INTERVAL}" \
+SYNC_CRON_EXPR="${SYNC_CRON_EXPR}" \
 bash "${BOOTSTRAP_SCRIPT}"
 
 if rclone listremotes | grep -Fxq "${DRIVE_REMOTE}:"; then
@@ -117,7 +117,7 @@ else
       DRIVE_REMOTE="${DRIVE_REMOTE}" \
       DRIVE_PATH="${DRIVE_PATH}" \
       LOCAL_SYNC_ROOT="${LOCAL_SYNC_ROOT}" \
-      SYNC_INTERVAL="${SYNC_INTERVAL}" \
+      SYNC_CRON_EXPR="${SYNC_CRON_EXPR}" \
       bash "${BOOTSTRAP_SCRIPT}"
     fi
   fi
@@ -127,5 +127,5 @@ echo
 log "Wizard complete"
 echo "Useful commands:"
 echo "  sudo /usr/local/bin/drive-sync-push"
-echo "  systemctl status drive-sync-push.timer"
-echo "  journalctl -u drive-sync-push.service -n 100 --no-pager"
+echo "  cat /etc/cron.d/infra-vps-scheduled-tasks"
+echo "  tail -n 100 /var/log/infra-vps-scheduled-tasks/drive-sync-push-to-google.log"

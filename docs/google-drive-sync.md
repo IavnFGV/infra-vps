@@ -6,7 +6,7 @@ The goal is convenience and repeatability:
 
 - one local folder on the server
 - one `rclone` remote
-- one scheduled push to Google Drive
+- one scheduled push to Google Drive through repo-managed cron tasks
 - optional repo-managed scheduled tasks that copy host files into the sync root
 - no live mount
 - no automatic restore from Google Drive yet
@@ -97,8 +97,8 @@ What the script does:
 - creates `/srv/drive-sync`
 - installs the sync helper at `/usr/local/bin/drive-sync-push`
 - writes `/etc/drive-sync.env`
-- installs `systemd` service and timer units
-- enables the timer only if the `rclone` remote already exists
+- writes cron metadata for the Google Drive push task
+- installs repo-managed scheduled tasks when the `rclone` remote is ready
 
 ## rclone remote
 
@@ -111,14 +111,10 @@ sudo rclone config
 ```
 
 Create a Google Drive remote with the same name passed in `DRIVE_REMOTE`, then
-run the setup script again or enable the timer manually:
+run the setup script again.
 
-```bash
-sudo systemctl enable --now drive-sync-push.timer
-```
-
-Use `sudo` here because the timer and helper run as `root`, so they read the
-root `rclone` config.
+Use `sudo` here because the sync helper runs as `root`, so it reads the root
+`rclone` config.
 
 ## Operations
 
@@ -128,16 +124,16 @@ Run a sync immediately:
 sudo /usr/local/bin/drive-sync-push
 ```
 
-Check timer state:
+Check generated cron entries:
 
 ```bash
-systemctl status drive-sync-push.timer
+cat /etc/cron.d/infra-vps-scheduled-tasks
 ```
 
 Check the latest sync logs:
 
 ```bash
-journalctl -u drive-sync-push.service -n 100 --no-pager
+tail -n 100 /var/log/infra-vps-scheduled-tasks/drive-sync-push-to-google.log
 ```
 
 Edit the sync settings:
@@ -179,6 +175,8 @@ CRON_EXPR="*/15 * * * *"
 
 Current example task:
 
+- `scheduled-tasks/drive-sync-push-to-google.sh`
+- `scheduled-tasks/drive-sync-push-to-google.env`
 - `scheduled-tasks/backup-wireguard-to-drive-sync.sh`
 - `scheduled-tasks/backup-wireguard-to-drive-sync.env`
 
@@ -191,8 +189,8 @@ into:
 
 - `/srv/drive-sync/infra-vps/wireguard/`
 
-Then the normal `drive-sync-push.timer` pushes those copied files to Google
-Drive.
+Then the scheduled `drive-sync-push-to-google` task pushes those copied files
+to Google Drive.
 
 ## Docker example
 

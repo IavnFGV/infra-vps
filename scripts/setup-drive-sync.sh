@@ -9,6 +9,7 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 HELPER_SOURCE="${REPO_ROOT}/scripts/drive-sync-push.sh"
+DRIVE_SYNC_TASK_ENV_FILE="${REPO_ROOT}/scheduled-tasks/drive-sync-push-to-google.env"
 
 DRIVE_REMOTE="${DRIVE_REMOTE:-}"
 DRIVE_PATH="${DRIVE_PATH:-}"
@@ -17,7 +18,7 @@ SYNC_ENV_FILE="${SYNC_ENV_FILE:-/etc/drive-sync.env}"
 SYNC_HELPER_PATH="${SYNC_HELPER_PATH:-/usr/local/bin/drive-sync-push}"
 SYNC_SERVICE_NAME="${SYNC_SERVICE_NAME:-drive-sync-push.service}"
 SYNC_TIMER_NAME="${SYNC_TIMER_NAME:-drive-sync-push.timer}"
-SYNC_INTERVAL="${SYNC_INTERVAL:-5min}"
+SYNC_CRON_EXPR="${SYNC_CRON_EXPR:-*/5 * * * *}"
 SYNC_USER="${SYNC_USER:-root}"
 RCLONE_PACKAGE="${RCLONE_PACKAGE:-rclone}"
 
@@ -93,37 +94,15 @@ step "Writing environment file"
 } > "${SYNC_ENV_FILE}"
 run chmod 0644 "${SYNC_ENV_FILE}"
 
-step "Installing systemd service"
-cat > "/etc/systemd/system/${SYNC_SERVICE_NAME}" <<EOF
-[Unit]
-Description=Push local drive-sync files to Google Drive
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=oneshot
-EnvironmentFile=${SYNC_ENV_FILE}
-ExecStart=${SYNC_HELPER_PATH}
-User=${SYNC_USER}
-Group=${SYNC_USER}
-EOF
-
-step "Installing systemd timer"
-cat > "/etc/systemd/system/${SYNC_TIMER_NAME}" <<EOF
-[Unit]
-Description=Run drive-sync push on a schedule
-
-[Timer]
-OnBootSec=2min
-OnUnitActiveSec=${SYNC_INTERVAL}
-Persistent=true
-
-[Install]
-WantedBy=timers.target
-EOF
-
-step "Reloading systemd units"
-run systemctl daemon-reload
+step "Writing scheduled task metadata"
+if [[ ! -d "$(dirname "${DRIVE_SYNC_TASK_ENV_FILE}")" ]]; then
+  fail "Missing scheduled-tasks directory near repo root"
+fi
+{
+  printf 'ENABLED=%q\n' "true"
+  printf 'CRON_EXPR=%q\n' "${SYNC_CRON_EXPR}"
+} > "${DRIVE_SYNC_TASK_ENV_FILE}"
+run chmod 0644 "${DRIVE_SYNC_TASK_ENV_FILE}"
 
 step "Checking rclone remote configuration"
 REMOTE_READY=0
@@ -134,14 +113,18 @@ else
   log "Remote '${DRIVE_REMOTE}' is not configured yet."
 fi
 
-step "Enabling timer when remote is ready"
+step "Disabling legacy systemd timer when present"
+run systemctl disable --now "${SYNC_TIMER_NAME}" || true
+
+step "Preparing scheduled drive sync when remote is ready"
 if [[ "${REMOTE_READY}" == "1" ]]; then
   run rclone mkdir "${DRIVE_REMOTE}:${DRIVE_PATH}"
-  run systemctl enable --now "${SYNC_TIMER_NAME}"
-  log "Timer enabled and started."
+  if [[ -x "${REPO_ROOT}/scripts/install-scheduled-tasks.sh" ]]; then
+    run bash "${REPO_ROOT}/scripts/install-scheduled-tasks.sh"
+  fi
+  log "Scheduled cron-based drive sync is ready."
 else
-  run systemctl disable --now "${SYNC_TIMER_NAME}" || true
-  log "Timer left disabled until rclone remote is configured."
+  log "Scheduled drive sync left inactive until rclone remote is configured."
 fi
 
 step "Printing summary and next steps"
@@ -155,16 +138,15 @@ Local sync root:
 Google Drive target:
   ${DRIVE_REMOTE}:${DRIVE_PATH}
 
-Systemd units:
-  /etc/systemd/system/${SYNC_SERVICE_NAME}
-  /etc/systemd/system/${SYNC_TIMER_NAME}
-
 Environment file:
   ${SYNC_ENV_FILE}
 
+Scheduled task metadata:
+  ${DRIVE_SYNC_TASK_ENV_FILE}
+
 Useful commands:
-  systemctl status ${SYNC_TIMER_NAME}
-  journalctl -u ${SYNC_SERVICE_NAME} -n 100 --no-pager
+  cat /etc/cron.d/infra-vps-scheduled-tasks
+  tail -n 100 /var/log/infra-vps-scheduled-tasks/drive-sync-push-to-google.log
   ${SYNC_HELPER_PATH}
 EOF
 
@@ -174,7 +156,6 @@ if [[ "${REMOTE_READY}" != "1" ]]; then
 Next step required:
   1. Run: sudo rclone config
   2. Create remote: ${DRIVE_REMOTE}
-  3. Re-run this setup script, or enable the timer manually:
-     systemctl enable --now ${SYNC_TIMER_NAME}
+  3. Re-run this setup script
 EOF
 fi

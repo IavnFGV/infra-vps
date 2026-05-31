@@ -84,7 +84,7 @@ sudo /usr/local/bin/drive-sync-push
 Check sync logs:
 
 ```bash
-journalctl -u drive-sync-push.service -n 100 --no-pager
+tail -n 100 /var/log/infra-vps-scheduled-tasks/drive-sync-push-to-google.log
 ```
 
 Install repo-managed scheduled tasks:
