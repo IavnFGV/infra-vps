@@ -105,6 +105,12 @@ Check generated cron entries:
 cat /etc/cron.d/infra-vps-scheduled-tasks
 ```
 
+Show status for all scheduled tasks:
+
+```bash
+sudo bash scripts/show-scheduled-tasks-status.sh
+```
+
 Check a task log:
 
 ```bash
