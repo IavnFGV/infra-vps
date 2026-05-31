@@ -86,3 +86,27 @@ Check sync logs:
 ```bash
 journalctl -u drive-sync-push.service -n 100 --no-pager
 ```
+
+Install repo-managed scheduled tasks:
+
+```bash
+sudo bash scripts/install-scheduled-tasks.sh
+```
+
+Rebuild cron entries from repo tasks:
+
+```bash
+sudo env TASKS_DIR=/opt/infra-vps/scheduled-tasks /usr/local/bin/infra-vps-sync-scheduled-tasks
+```
+
+Check generated cron entries:
+
+```bash
+cat /etc/cron.d/infra-vps-scheduled-tasks
+```
+
+Check a task log:
+
+```bash
+tail -n 100 /var/log/infra-vps-scheduled-tasks/backup-wireguard-to-drive-sync.log
+```

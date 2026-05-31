@@ -44,6 +44,9 @@ Uptime Kuma owns:
 - `scripts/setup-wireguard.sh` - host VPN bootstrap
 - `scripts/setup-drive-sync.sh` - Google Drive sync bootstrap
 - `scripts/drive-sync-push.sh` - push-only `rclone` helper
+- `scripts/install-scheduled-tasks.sh` - install repo-managed scheduled task sync
+- `scripts/sync-scheduled-tasks.sh` - generate cron entries from repo task metadata
+- `scheduled-tasks/` - small host backup copy tasks plus per-task cron metadata
 
 ## Contract with application stacks
 

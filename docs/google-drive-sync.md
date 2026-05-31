@@ -7,6 +7,7 @@ The goal is convenience and repeatability:
 - one local folder on the server
 - one `rclone` remote
 - one scheduled push to Google Drive
+- optional repo-managed scheduled tasks that copy host files into the sync root
 - no live mount
 - no automatic restore from Google Drive yet
 
@@ -65,6 +66,8 @@ Example service layout:
   `/srv/drive-sync/services/<service>/...`.
 - Put infra files you want to keep in Google Drive under
   `/srv/drive-sync/infra-vps/...`.
+- If a host file needs regular backup, add a small scheduled task in this repo
+  that copies it into `/srv/drive-sync/...`.
 - Local files are the source of truth. If a file is deleted locally, it will be
   deleted on Google Drive on the next sync.
 
@@ -143,6 +146,53 @@ Edit the sync settings:
 sudoedit /etc/drive-sync.env
 sudo systemctl daemon-reload
 ```
+
+## Repo-managed scheduled tasks
+
+Host-level backup copy tasks can live in `scheduled-tasks/` in this repo.
+
+Install the current scheduled tasks set:
+
+```bash
+sudo bash /opt/infra-vps/scripts/install-scheduled-tasks.sh
+```
+
+How it works:
+
+- the installer adds one cron sync entry
+- that sync entry runs every minute
+- it scans `scheduled-tasks/` in this repo
+- it generates `/etc/cron.d/infra-vps-scheduled-tasks`
+- enabled tasks then run according to their own cron expressions
+
+Task format:
+
+- `scheduled-tasks/<task>.sh`
+- `scheduled-tasks/<task>.env`
+
+Example metadata file:
+
+```bash
+ENABLED=true
+CRON_EXPR="*/15 * * * *"
+```
+
+Current example task:
+
+- `scheduled-tasks/backup-wireguard-to-drive-sync.sh`
+- `scheduled-tasks/backup-wireguard-to-drive-sync.env`
+
+This task copies:
+
+- `/etc/wireguard/wg0.conf`
+- `/etc/wireguard/clients/*.conf`
+
+into:
+
+- `/srv/drive-sync/infra-vps/wireguard/`
+
+Then the normal `drive-sync-push.timer` pushes those copied files to Google
+Drive.
 
 ## Docker example
 
