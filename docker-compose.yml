@@ -11,7 +11,7 @@ services:
       - ./nginx/snippets:/etc/nginx/snippets:ro
       - ./certbot/conf:/etc/letsencrypt:ro
       - ./certbot/www:/var/www/certbot:ro
-      - ./data/bot-static:/srv/bot-static:ro
+      - /srv/service-static:/srv/service-static:ro
     networks:
       - edge
 
