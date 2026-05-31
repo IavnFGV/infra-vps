@@ -38,6 +38,12 @@ Apply the service registry:
 ./scripts/apply-services.sh
 ```
 
+Install Dockge:
+
+```bash
+sudo bash scripts/007-install-dockge.sh
+```
+
 ## Normal service lifecycle
 
 1. Start or update the stack in Dockge.

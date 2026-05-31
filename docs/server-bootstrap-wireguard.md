@@ -127,8 +127,14 @@ cd /opt/infra-vps
 
 ## 11. Install Dockge
 
-Install Dockge using the method you prefer, but keep its stacks under
+```bash
+sudo bash /opt/infra-vps/scripts/007-install-dockge.sh
+```
+
+This installs Dockge into `/opt/dockge` and points it at
 `/opt/dockge/stacks`.
+
+By default it binds to `127.0.0.1:5001`, which keeps it off the public network.
 
 ## 12. Migrate services safely
 

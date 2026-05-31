@@ -49,6 +49,7 @@ Uptime Kuma owns:
 - `scripts/004-install-scheduled-tasks.sh` - install repo-managed scheduled task sync
 - `scripts/005-setup-node-layout.sh` - prepare Dockge and service directories
 - `scripts/006-deploy-infra.sh` - start the infra stack and validate `nginx`
+- `scripts/007-install-dockge.sh` - install Dockge in `/opt/dockge`
 - `scripts/sync-scheduled-tasks.sh` - generate cron entries from repo task metadata
 - `scheduled-tasks/` - small host backup copy tasks plus per-task cron metadata
 

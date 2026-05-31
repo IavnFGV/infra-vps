@@ -22,6 +22,7 @@ Dockge and attached to `edge` with stable aliases that match the registry.
 5. Run `sudo bash scripts/004-install-scheduled-tasks.sh`.
 6. Run `sudo bash scripts/005-setup-node-layout.sh`.
 7. Start the infra stack with `./scripts/006-deploy-infra.sh`.
+8. Install Dockge with `sudo bash scripts/007-install-dockge.sh`.
 
 From there:
 

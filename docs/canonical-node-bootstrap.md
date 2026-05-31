@@ -37,6 +37,8 @@ sudo bash /opt/infra-vps/scripts/005-setup-node-layout.sh
 
 cd /opt/infra-vps
 ./scripts/006-deploy-infra.sh
+
+sudo bash /opt/infra-vps/scripts/007-install-dockge.sh
 ```
 
 If there is no old environment and no existing encrypted registry values,
@@ -55,18 +57,18 @@ sudo bash /opt/infra-vps/scripts/003-create-master-key.sh
 5. Installs repo-managed scheduled tasks.
 6. Prepares the canonical directories for Dockge and service data.
 7. Starts the infra stack and validates `nginx`.
+8. Installs Dockge in the canonical host location.
 
 ## What comes next
 
 After the canonical bootstrap is done:
 
-1. Install Dockge.
-2. Recreate application stacks in Dockge under `/opt/dockge/stacks`.
-3. Make each published stack join `edge` with the alias used in
+1. Recreate application stacks in Dockge under `/opt/dockge/stacks`.
+2. Make each published stack join `edge` with the alias used in
    `registry/services/*.env`.
-4. Run `./scripts/apply-services.sh` only after the upstream container is
+3. Run `./scripts/apply-services.sh` only after the upstream container is
    reachable on `edge`.
-5. Add Uptime Kuma after ingress is already stable.
+4. Add Uptime Kuma after ingress is already stable.
 
 ## Optional steps
 

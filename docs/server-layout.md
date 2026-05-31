@@ -16,7 +16,8 @@ Suggested layout on the VPS:
 ## Ownership
 
 - `/opt/infra-vps` - this repo
-- `/opt/dockge` - Dockge install
+- `/opt/dockge` - Dockge install and compose file
+- `/opt/dockge/data` - Dockge application data
 - `/opt/dockge/stacks/<stack>` - compose stacks managed by Dockge
 - `/srv/services/<service>` - persistent application data
 - `/srv/service-static/<service>` - optional files for `STATIC_DIR`
