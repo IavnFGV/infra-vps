@@ -9,6 +9,7 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
+CONFIG_FILE="${CONFIG_FILE:-/etc/default/infra-vps-scheduled-tasks}"
 TASKS_DIR="${TASKS_DIR:-${REPO_ROOT}/scheduled-tasks}"
 SERVICE_TASKS_ROOT="${SERVICE_TASKS_ROOT:-/srv/scheduled-tasks.d}"
 CRON_FILE="${CRON_FILE:-/etc/cron.d/infra-vps-scheduled-tasks}"
@@ -26,6 +27,11 @@ fail() {
   log "ERROR: $*"
   exit 1
 }
+
+if [[ -f "${CONFIG_FILE}" ]]; then
+  # shellcheck disable=SC1090
+  source "${CONFIG_FILE}"
+fi
 
 if [[ ! -d "${TASKS_DIR}" ]]; then
   fail "Tasks directory not found: ${TASKS_DIR}"

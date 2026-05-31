@@ -9,10 +9,15 @@ fi
 SERVICE_NAME="${SERVICE_NAME:-}"
 SERVICE_DIR="${SERVICE_DIR:-}"
 SERVICE_TASKS_SOURCE_DIR="${SERVICE_TASKS_SOURCE_DIR:-}"
+CONFIG_FILE="${CONFIG_FILE:-/etc/default/infra-vps-scheduled-tasks}"
 SERVICE_TASKS_ROOT="${SERVICE_TASKS_ROOT:-/srv/scheduled-tasks.d}"
 SYNC_COMMAND="${SYNC_COMMAND:-/usr/local/bin/infra-vps-sync-scheduled-tasks}"
-INFRA_TASKS_DIR="${INFRA_TASKS_DIR:-/opt/infra-vps/scheduled-tasks}"
 NODE_OWNER="${NODE_OWNER:-deploy}"
+
+if [[ -f "${CONFIG_FILE}" ]]; then
+  # shellcheck disable=SC1090
+  source "${CONFIG_FILE}"
+fi
 
 if [[ -z "${SERVICE_NAME}" ]]; then
   echo "SERVICE_NAME is required"
@@ -52,7 +57,7 @@ else
 fi
 
 if [[ -x "${SYNC_COMMAND}" ]]; then
-  env TASKS_DIR="${INFRA_TASKS_DIR}" SERVICE_TASKS_ROOT="${SERVICE_TASKS_ROOT}" "${SYNC_COMMAND}"
+  env TASKS_DIR="${TASKS_DIR}" SERVICE_TASKS_ROOT="${SERVICE_TASKS_ROOT}" "${SYNC_COMMAND}"
 fi
 
 echo "Service scheduled tasks registered for ${SERVICE_NAME}"

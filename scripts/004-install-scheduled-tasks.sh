@@ -13,6 +13,7 @@ SYNC_SCRIPT_SOURCE="${REPO_ROOT}/scripts/sync-scheduled-tasks.sh"
 SYNC_SCRIPT_TARGET="${SYNC_SCRIPT_TARGET:-/usr/local/bin/infra-vps-sync-scheduled-tasks}"
 REGISTER_SCRIPT_SOURCE="${REPO_ROOT}/scripts/register-service-scheduled-tasks.sh"
 REGISTER_SCRIPT_TARGET="${REGISTER_SCRIPT_TARGET:-/usr/local/bin/infra-vps-register-service-scheduled-tasks}"
+CONFIG_FILE="${CONFIG_FILE:-/etc/default/infra-vps-scheduled-tasks}"
 SYNC_CRON_FILE="${SYNC_CRON_FILE:-/etc/cron.d/infra-vps-scheduled-tasks-sync}"
 TASKS_DIR="${TASKS_DIR:-${REPO_ROOT}/scheduled-tasks}"
 SERVICE_TASKS_ROOT="${SERVICE_TASKS_ROOT:-/srv/scheduled-tasks.d}"
@@ -54,18 +55,25 @@ run install -m 0755 "${SYNC_SCRIPT_SOURCE}" "${SYNC_SCRIPT_TARGET}"
 log "Installing service scheduled task register script"
 run install -m 0755 "${REGISTER_SCRIPT_SOURCE}" "${REGISTER_SCRIPT_TARGET}"
 
+log "Writing scheduled task config"
+cat > "${CONFIG_FILE}" <<EOF
+TASKS_DIR=${TASKS_DIR}
+SERVICE_TASKS_ROOT=${SERVICE_TASKS_ROOT}
+EOF
+run chmod 0644 "${CONFIG_FILE}"
+
 log "Installing cron sync entry"
 cat > "${SYNC_CRON_FILE}" <<EOF
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-* * * * * root TASKS_DIR=${TASKS_DIR} SERVICE_TASKS_ROOT=${SERVICE_TASKS_ROOT} ${SYNC_SCRIPT_TARGET} >> ${SYNC_LOG_FILE} 2>&1
+* * * * * root ${SYNC_SCRIPT_TARGET} >> ${SYNC_LOG_FILE} 2>&1
 EOF
 
 run chmod 0644 "${SYNC_CRON_FILE}"
 
 log "Running initial cron sync"
-run env TASKS_DIR="${TASKS_DIR}" SERVICE_TASKS_ROOT="${SERVICE_TASKS_ROOT}" "${SYNC_SCRIPT_TARGET}"
+run "${SYNC_SCRIPT_TARGET}"
 
 log "Scheduled task install complete"
 cat <<EOF
@@ -73,11 +81,13 @@ cat <<EOF
 Installed:
   ${SYNC_SCRIPT_TARGET}
   ${REGISTER_SCRIPT_TARGET}
+  ${CONFIG_FILE}
   ${SYNC_CRON_FILE}
 
 Useful commands:
   cat /etc/cron.d/infra-vps-scheduled-tasks
   cat ${SYNC_CRON_FILE}
+  cat ${CONFIG_FILE}
   tail -n 100 ${SYNC_LOG_FILE}
-  env TASKS_DIR=${TASKS_DIR} SERVICE_TASKS_ROOT=${SERVICE_TASKS_ROOT} ${SYNC_SCRIPT_TARGET}
+  ${SYNC_SCRIPT_TARGET}
 EOF

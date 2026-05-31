@@ -107,6 +107,9 @@ Service-owned scheduled tasks:
 - use `scripts/register-service-scheduled-tasks.sh` to publish or refresh them
 - the installer exposes a host helper in `PATH`:
   - `/usr/local/bin/infra-vps-register-service-scheduled-tasks`
+- scheduler config is persisted on the host in:
+  - `/etc/default/infra-vps-scheduled-tasks`
+- service deploy should not need to know the path of the infra repo on disk
 - set `ENABLED=true|false` and `CRON_EXPR=...` in each task `.env`
 - optional task fields:
   - `RUN_AS=deploy`
