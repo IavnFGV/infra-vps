@@ -16,11 +16,11 @@ Suggested layout on the VPS:
 ## Ownership
 
 - `/opt/infra-vps` - this repo
-- `/opt/dockge` - Dockge install and compose file
-- `/opt/dockge/data` - Dockge application data
-- `/opt/dockge/stacks/<stack>` - compose stacks managed by Dockge
-- `/srv/services/<service>` - persistent application data
-- `/srv/service-static/<service>` - optional files for `STATIC_DIR`
+- `/opt/dockge` - Dockge install and compose file, owned by `deploy`
+- `/opt/dockge/data` - Dockge application data, owned by `deploy`
+- `/opt/dockge/stacks/<stack>` - compose stacks managed by Dockge, owned by `deploy`
+- `/srv/services/<service>` - persistent application data, owned by `deploy`
+- `/srv/service-static/<service>` - optional files for `STATIC_DIR`, owned by `deploy`
 - `/srv/drive-sync/...` - push-only sync root for Google Drive exports and convenience copies
 - `/opt/infra-secrets/master.key` - registry encryption key
 - `/etc/wireguard` - host WireGuard state
