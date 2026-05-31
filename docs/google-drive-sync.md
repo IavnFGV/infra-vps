@@ -70,12 +70,21 @@ Example service layout:
 
 ## Bootstrap
 
-Run the setup script on a node where server setup, Docker, and WireGuard are
-already finished:
+Recommended entrypoint:
+
+```bash
+sudo bash /opt/infra-vps/scripts/setup-drive-sync-dialog.sh
+```
+
+This interactive wrapper asks a few simple questions, can open
+`sudo rclone config` if needed, and then calls the bootstrap script for you.
+
+Direct bootstrap is also available on a node where server setup, Docker, and
+WireGuard are already finished:
 
 ```bash
 sudo DRIVE_REMOTE=gdrive \
-  DRIVE_PATH='Server Files/infra-vps' \
+  DRIVE_PATH='server-files/infra-vps' \
   bash /opt/infra-vps/scripts/setup-drive-sync.sh
 ```
 

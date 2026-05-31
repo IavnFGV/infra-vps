@@ -64,8 +64,14 @@ sudo SERVER_PUBLIC_IP=<server-ip> bash scripts/reset-wireguard.sh
 Bootstrap:
 
 ```bash
+sudo bash scripts/setup-drive-sync-dialog.sh
+```
+
+Direct bootstrap:
+
+```bash
 sudo DRIVE_REMOTE=gdrive \
-  DRIVE_PATH='Server Files/infra-vps' \
+  DRIVE_PATH='server-files/infra-vps' \
   bash scripts/setup-drive-sync.sh
 ```
 

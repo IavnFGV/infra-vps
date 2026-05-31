@@ -147,9 +147,7 @@ If you want a simple push-only sync folder for exports, backups, and convenience
 copies:
 
 ```bash
-sudo DRIVE_REMOTE=gdrive \
-  DRIVE_PATH='Server Files/infra-vps' \
-  bash /opt/infra-vps/scripts/setup-drive-sync.sh
+sudo bash /opt/infra-vps/scripts/setup-drive-sync-dialog.sh
 ```
 
 This creates `/srv/drive-sync`, installs the `rclone` helper, and sets up a
