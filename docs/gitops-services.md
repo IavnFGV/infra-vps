@@ -70,19 +70,16 @@ Optional TLS fields:
 - `ENABLE_HTTPS=true|false`
 - `LETSENCRYPT_EMAIL=enc:...` when HTTPS is enabled
 
-Optional secret static path fields:
+Secret static path field:
 
-- `STATIC_ENABLED=true|false`
-- `PROXY_MODE=files|proxy|both`
-- `STATIC_PUBLIC_PREFIX=/static`
 - `STATIC_SECRET=enc:...`
-- `STATIC_DIR=/srv/service-static/<service>` for `files` and `both`
 
 Behavior:
 
-- `files`: serve files from `STATIC_DIR`
-- `proxy`: forward the secret path to the upstream app
-- `both`: serve files first, then fall back to the app
+- every service automatically gets a secret static route
+- the route format is `/static/<secret>/...`
+- files are always served from `/srv/service-static/<service-name>/`
+- if a file does not exist there, `nginx` returns `404`
 
 ## Example stack contract
 

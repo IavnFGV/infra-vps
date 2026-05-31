@@ -34,26 +34,10 @@ Check:
 
 Check:
 
-1. the secret prefix matches config
-2. files exist in the configured `STATIC_DIR`
+1. the secret part of the URL matches `STATIC_SECRET`
+2. files exist in `/srv/service-static/<service-name>/`
 3. `alias` target directory exists
-4. file path under the secret prefix is correct
-
-## Secret proxy path returns 404 or wrong app route
-
-Check:
-
-1. `PROXY_MODE=proxy` or `PROXY_MODE=both` is set for the service
-2. the secret prefix matches config
-3. the app expects paths after the secret prefix, because Nginx strips that prefix before proxying
-4. the upstream container is reachable on `edge`
-
-## Secret path serves old file instead of app
-
-Check:
-
-1. `PROXY_MODE=both` serves static files first and only falls back to the app if no file matches
-2. the requested path does not accidentally exist in `STATIC_DIR`
+4. file path under `/static/<secret>/...` is correct
 
 ## nip.io note
 

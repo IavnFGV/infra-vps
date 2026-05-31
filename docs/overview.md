@@ -21,6 +21,7 @@ Keep one VPS setup simple and boring:
 - generated virtual hosts in `nginx/sites/`
 - the shared Docker network `edge`
 - host bootstrap and WireGuard scripts
+- the standard secret static route `/static/<secret>/...` for every service
 
 Dockge owns:
 

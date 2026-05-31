@@ -46,19 +46,6 @@ require_var() {
     fi
 }
 
-normalize_static_prefix() {
-    local prefix="$1"
-
-    if [[ -z "${prefix}" ]]; then
-        prefix="/static"
-    fi
-
-    prefix="/${prefix#/}"
-    prefix="${prefix%/}"
-
-    printf "%s" "${prefix}"
-}
-
 normalize_dir_with_trailing_slash() {
     local dir="$1"
 
@@ -68,52 +55,16 @@ normalize_dir_with_trailing_slash() {
 }
 
 generate_secret_location() {
-    local upstream_host="$1"
-    local upstream_port="$2"
-    local proxy_mode="$3"
-    local static_public_prefix="$4"
-    local static_secret="$5"
-    local static_dir="$6"
+    local static_secret="$1"
+    local static_dir="$2"
 
-    local secret_location="${static_public_prefix}/${static_secret}"
+    local secret_location="/static/${static_secret}"
 
     cat <<EOF
 
     location = ${secret_location} {
         return 301 ${secret_location}/;
     }
-EOF
-
-    if [[ "${proxy_mode}" == "proxy" ]]; then
-        cat <<EOF
-
-    location ${secret_location}/ {
-        proxy_pass http://${upstream_host}:${upstream_port}/;
-        include /etc/nginx/snippets/proxy.conf;
-    }
-EOF
-        return 0
-    fi
-
-    if [[ "${proxy_mode}" == "both" ]]; then
-        cat <<EOF
-
-    location ${secret_location}/ {
-        alias ${static_dir};
-        autoindex off;
-        try_files \$uri \$uri/ @secret_proxy_fallback;
-    }
-
-    location @secret_proxy_fallback {
-        rewrite ^${secret_location}/?(.*)$ /\$1 break;
-        proxy_pass http://${upstream_host}:${upstream_port};
-        include /etc/nginx/snippets/proxy.conf;
-    }
-EOF
-        return 0
-    fi
-
-    cat <<EOF
 
     location ${secret_location}/ {
         alias ${static_dir};
@@ -127,11 +78,8 @@ generate_http_config() {
     local domain="$1"
     local upstream_host="$2"
     local upstream_port="$3"
-    local static_enabled="$4"
-    local proxy_mode="$5"
-    local static_public_prefix="$6"
-    local static_secret="$7"
-    local static_dir="$8"
+    local static_secret="$4"
+    local static_dir="$5"
 
     cat <<EOF
 server {
@@ -146,12 +94,8 @@ server {
     }
 EOF
 
-    if [[ "${static_enabled}" == "true" ]]; then
+    if [[ -n "${static_secret}" ]]; then
         generate_secret_location \
-            "${upstream_host}" \
-            "${upstream_port}" \
-            "${proxy_mode}" \
-            "${static_public_prefix}" \
             "${static_secret}" \
             "${static_dir}"
     fi
@@ -165,11 +109,8 @@ generate_https_config() {
     local domain="$1"
     local upstream_host="$2"
     local upstream_port="$3"
-    local static_enabled="$4"
-    local proxy_mode="$5"
-    local static_public_prefix="$6"
-    local static_secret="$7"
-    local static_dir="$8"
+    local static_secret="$4"
+    local static_dir="$5"
 
     cat <<EOF
 server {
@@ -200,12 +141,8 @@ server {
     }
 EOF
 
-    if [[ "${static_enabled}" == "true" ]]; then
+    if [[ -n "${static_secret}" ]]; then
         generate_secret_location \
-            "${upstream_host}" \
-            "${upstream_port}" \
-            "${proxy_mode}" \
-            "${static_public_prefix}" \
             "${static_secret}" \
             "${static_dir}"
     fi
@@ -227,12 +164,7 @@ validate_service() {
         require_var "LETSENCRYPT_EMAIL" "${SERVICE_NAME}"
     fi
 
-    if [[ "${STATIC_ENABLED:-false}" == "true" ]]; then
-        require_var "STATIC_SECRET" "${SERVICE_NAME}"
-        if [[ "${PROXY_MODE:-files}" == "files" || "${PROXY_MODE:-files}" == "both" ]]; then
-            require_var "STATIC_DIR" "${SERVICE_NAME}"
-        fi
-    fi
+    require_var "STATIC_SECRET" "${SERVICE_NAME}"
 }
 
 issue_certificate_if_needed() {
@@ -267,7 +199,7 @@ apply_service() {
 
     unset SERVICE_NAME DOMAIN UPSTREAM_HOST UPSTREAM_PORT
     unset ENABLE_HTTPS LETSENCRYPT_EMAIL
-    unset STATIC_ENABLED PROXY_MODE STATIC_PUBLIC_PREFIX STATIC_SECRET STATIC_DIR
+    unset STATIC_SECRET STATIC_DIR
 
     log "Processing service file: ${service_file}"
 
@@ -278,18 +210,7 @@ apply_service() {
     STATIC_SECRET="$(decrypt_value "${STATIC_SECRET:-}")"
 
     ENABLE_HTTPS="${ENABLE_HTTPS:-false}"
-    STATIC_ENABLED="${STATIC_ENABLED:-false}"
-    PROXY_MODE="${PROXY_MODE:-files}"
-    STATIC_PUBLIC_PREFIX="$(normalize_static_prefix "${STATIC_PUBLIC_PREFIX:-/static}")"
-
-    if [[ "${PROXY_MODE}" != "files" && "${PROXY_MODE}" != "proxy" && "${PROXY_MODE}" != "both" ]]; then
-        log "ERROR: PROXY_MODE must be one of files, proxy, or both for ${SERVICE_NAME}"
-        exit 1
-    fi
-
-    if [[ -n "${STATIC_DIR:-}" && ( "${PROXY_MODE}" == "files" || "${PROXY_MODE}" == "both" ) ]]; then
-        STATIC_DIR="$(normalize_dir_with_trailing_slash "${STATIC_DIR}")"
-    fi
+    STATIC_DIR="$(normalize_dir_with_trailing_slash "/srv/service-static/${SERVICE_NAME}")"
 
     validate_service "${service_file_name}"
 
@@ -300,11 +221,8 @@ apply_service() {
         "${DOMAIN}" \
         "${UPSTREAM_HOST}" \
         "${UPSTREAM_PORT}" \
-        "${STATIC_ENABLED}" \
-        "${PROXY_MODE}" \
-        "${STATIC_PUBLIC_PREFIX}" \
         "${STATIC_SECRET:-}" \
-        "${STATIC_DIR:-}" \
+        "${STATIC_DIR}" \
         > "${config_file}"
 
     if [[ "${ENABLE_HTTPS}" == "true" ]]; then
@@ -321,11 +239,8 @@ apply_service() {
             "${DOMAIN}" \
             "${UPSTREAM_HOST}" \
             "${UPSTREAM_PORT}" \
-            "${STATIC_ENABLED}" \
-            "${PROXY_MODE}" \
-            "${STATIC_PUBLIC_PREFIX}" \
             "${STATIC_SECRET:-}" \
-            "${STATIC_DIR:-}" \
+            "${STATIC_DIR}" \
             > "${config_file}"
     fi
 
