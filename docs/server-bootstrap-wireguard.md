@@ -24,7 +24,7 @@ If the repo is private, use the access method you normally use.
 ## 3. Run base server setup
 
 ```bash
-sudo bash /opt/infra-vps/scripts/setup-server.sh
+sudo bash /opt/infra-vps/scripts/001-setup-server.sh
 ```
 
 This installs Docker and Docker Compose, creates `deploy`, copies the current
@@ -35,7 +35,7 @@ password login, and disables SSH login for `root`.
 
 ```bash
 sudo SERVER_PUBLIC_IP=YOUR_SERVER_IP \
-  bash /opt/infra-vps/scripts/setup-wireguard.sh
+  bash /opt/infra-vps/scripts/002-setup-wireguard.sh
 ```
 
 This will:
@@ -92,19 +92,19 @@ existing key from the old node to the new server and restore it:
 
 ```bash
 scp deploy@OLD_SERVER_IP:/opt/infra-secrets/master.key /tmp/infra-vps-master.key
-sudo bash /opt/infra-vps/scripts/restore-master-key.sh /tmp/infra-vps-master.key
+sudo bash /opt/infra-vps/scripts/003-restore-master-key.sh /tmp/infra-vps-master.key
 ```
 
 If this is a brand new environment with no existing encrypted registry values:
 
 ```bash
-sudo bash /opt/infra-vps/scripts/create-master-key.sh
+sudo bash /opt/infra-vps/scripts/003-create-master-key.sh
 ```
 
 ## 8. Install repo-managed scheduled tasks
 
 ```bash
-sudo bash /opt/infra-vps/scripts/install-scheduled-tasks.sh
+sudo bash /opt/infra-vps/scripts/004-install-scheduled-tasks.sh
 ```
 
 This installs the repo-managed cron sync and applies the current tasks from
@@ -113,7 +113,7 @@ This installs the repo-managed cron sync and applies the current tasks from
 ## 9. Prepare the node layout
 
 ```bash
-sudo bash /opt/infra-vps/scripts/setup-node-layout.sh
+sudo bash /opt/infra-vps/scripts/005-setup-node-layout.sh
 ```
 
 This prepares the canonical directories for Dockge stacks and service data.
@@ -122,7 +122,7 @@ This prepares the canonical directories for Dockge stacks and service data.
 
 ```bash
 cd /opt/infra-vps
-./scripts/deploy-infra.sh
+./scripts/006-deploy-infra.sh
 ```
 
 ## 11. Install Dockge

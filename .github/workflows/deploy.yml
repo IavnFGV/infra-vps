@@ -25,7 +25,7 @@ jobs:
             git reset --hard origin/main
             chmod +x scripts/*.sh
             ./scripts/init-edge-network.sh
-            ./scripts/deploy-infra.sh
-            ./scripts/create-master-key.sh
+            ./scripts/006-deploy-infra.sh
+            ./scripts/003-create-master-key.sh
             ./scripts/apply-services.sh
             docker compose ps

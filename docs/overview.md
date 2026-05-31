@@ -40,11 +40,15 @@ Uptime Kuma owns:
 - `registry/services/` - desired published services
 - `nginx/sites/` - generated service configs plus `_default.conf`
 - `scripts/apply-services.sh` - registry to nginx compiler
-- `scripts/setup-server.sh` - baseline node bootstrap
-- `scripts/setup-wireguard.sh` - host VPN bootstrap
+- `scripts/001-setup-server.sh` - baseline node bootstrap
+- `scripts/002-setup-wireguard.sh` - host VPN bootstrap
+- `scripts/003-restore-master-key.sh` - restore the registry master key
+- `scripts/003-create-master-key.sh` - create a new registry master key
 - `scripts/setup-drive-sync.sh` - Google Drive sync bootstrap
 - `scripts/drive-sync-push.sh` - push-only `rclone` helper
-- `scripts/install-scheduled-tasks.sh` - install repo-managed scheduled task sync
+- `scripts/004-install-scheduled-tasks.sh` - install repo-managed scheduled task sync
+- `scripts/005-setup-node-layout.sh` - prepare Dockge and service directories
+- `scripts/006-deploy-infra.sh` - start the infra stack and validate `nginx`
 - `scripts/sync-scheduled-tasks.sh` - generate cron entries from repo task metadata
 - `scheduled-tasks/` - small host backup copy tasks plus per-task cron metadata
 

@@ -150,7 +150,7 @@ Host-level backup copy tasks can live in `scheduled-tasks/` in this repo.
 Install the current scheduled tasks set:
 
 ```bash
-sudo bash /opt/infra-vps/scripts/install-scheduled-tasks.sh
+sudo bash /opt/infra-vps/scripts/004-install-scheduled-tasks.sh
 ```
 
 How it works:

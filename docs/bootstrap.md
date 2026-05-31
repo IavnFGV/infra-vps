@@ -13,11 +13,11 @@ For the exact rebuild and migration sequence on a new node, use
 ## Initial setup
 
 ```bash
-sudo bash scripts/setup-server.sh
-sudo SERVER_PUBLIC_IP=<server-ip> bash scripts/setup-wireguard.sh
-sudo bash scripts/install-scheduled-tasks.sh
-sudo bash scripts/setup-node-layout.sh
-./scripts/deploy-infra.sh
+sudo bash scripts/001-setup-server.sh
+sudo SERVER_PUBLIC_IP=<server-ip> bash scripts/002-setup-wireguard.sh
+sudo bash scripts/004-install-scheduled-tasks.sh
+sudo bash scripts/005-setup-node-layout.sh
+./scripts/006-deploy-infra.sh
 ```
 
 ## Result

@@ -24,26 +24,26 @@ apt-get update
 apt-get install -y git
 git clone <YOUR_REPO_URL> /opt/infra-vps
 
-sudo bash /opt/infra-vps/scripts/setup-server.sh
+sudo bash /opt/infra-vps/scripts/001-setup-server.sh
 
 sudo SERVER_PUBLIC_IP=YOUR_SERVER_IP \
-  bash /opt/infra-vps/scripts/setup-wireguard.sh
+  bash /opt/infra-vps/scripts/002-setup-wireguard.sh
 
 scp deploy@OLD_SERVER_IP:/opt/infra-secrets/master.key /tmp/infra-vps-master.key
-sudo bash /opt/infra-vps/scripts/restore-master-key.sh /tmp/infra-vps-master.key
+sudo bash /opt/infra-vps/scripts/003-restore-master-key.sh /tmp/infra-vps-master.key
 
-sudo bash /opt/infra-vps/scripts/install-scheduled-tasks.sh
-sudo bash /opt/infra-vps/scripts/setup-node-layout.sh
+sudo bash /opt/infra-vps/scripts/004-install-scheduled-tasks.sh
+sudo bash /opt/infra-vps/scripts/005-setup-node-layout.sh
 
 cd /opt/infra-vps
-./scripts/deploy-infra.sh
+./scripts/006-deploy-infra.sh
 ```
 
 If there is no old environment and no existing encrypted registry values,
 replace the master key copy step with:
 
 ```bash
-sudo bash /opt/infra-vps/scripts/create-master-key.sh
+sudo bash /opt/infra-vps/scripts/003-create-master-key.sh
 ```
 
 ## What this sequence does

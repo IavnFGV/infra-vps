@@ -119,8 +119,8 @@ run systemctl disable --now "${SYNC_TIMER_NAME}" || true
 step "Preparing scheduled drive sync when remote is ready"
 if [[ "${REMOTE_READY}" == "1" ]]; then
   run rclone mkdir "${DRIVE_REMOTE}:${DRIVE_PATH}"
-  if [[ -x "${REPO_ROOT}/scripts/install-scheduled-tasks.sh" ]]; then
-    run bash "${REPO_ROOT}/scripts/install-scheduled-tasks.sh"
+  if [[ -x "${REPO_ROOT}/scripts/004-install-scheduled-tasks.sh" ]]; then
+    run bash "${REPO_ROOT}/scripts/004-install-scheduled-tasks.sh"
   fi
   log "Scheduled cron-based drive sync is ready."
 else

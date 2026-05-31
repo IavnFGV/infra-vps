@@ -35,7 +35,7 @@ To unpublish a service:
 
 - Server location: `/opt/infra-secrets/master.key`
 - Local copy: `~/.infra-vps-master.key`
-- Generation on server: `./scripts/create-master-key.sh`
+- Generation on server: `./scripts/003-create-master-key.sh`
 - Warning: if the key is lost, `enc:` values cannot be decrypted
 
 To copy the current key locally:

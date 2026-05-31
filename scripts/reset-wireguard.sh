@@ -19,4 +19,4 @@ if [[ -z "${SERVER_PUBLIC_IP}" ]]; then
 fi
 
 echo "Resetting WireGuard from scratch..."
-FORCE=1 SERVER_PUBLIC_IP="${SERVER_PUBLIC_IP}" bash "${SCRIPT_DIR}/setup-wireguard.sh"
+FORCE=1 SERVER_PUBLIC_IP="${SERVER_PUBLIC_IP}" bash "${SCRIPT_DIR}/002-setup-wireguard.sh"

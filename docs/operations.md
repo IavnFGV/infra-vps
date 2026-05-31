@@ -50,7 +50,7 @@ Apply the service registry:
 Fresh setup:
 
 ```bash
-sudo SERVER_PUBLIC_IP=<server-ip> bash scripts/setup-wireguard.sh
+sudo SERVER_PUBLIC_IP=<server-ip> bash scripts/002-setup-wireguard.sh
 ```
 
 Full rebuild:
@@ -90,7 +90,7 @@ tail -n 100 /var/log/infra-vps-scheduled-tasks/drive-sync-push-to-google.log
 Install repo-managed scheduled tasks:
 
 ```bash
-sudo bash scripts/install-scheduled-tasks.sh
+sudo bash scripts/004-install-scheduled-tasks.sh
 ```
 
 Rebuild cron entries from repo tasks:

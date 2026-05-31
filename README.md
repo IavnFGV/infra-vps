@@ -16,12 +16,12 @@ Dockge and attached to `edge` with stable aliases that match the registry.
 ## Quick start
 
 1. Clone the repo to `/opt/infra-vps`.
-2. Run `sudo bash scripts/setup-server.sh` on a fresh node.
-3. Run `sudo SERVER_PUBLIC_IP=<server-ip> bash scripts/setup-wireguard.sh`.
+2. Run `sudo bash scripts/001-setup-server.sh` on a fresh node.
+3. Run `sudo SERVER_PUBLIC_IP=<server-ip> bash scripts/002-setup-wireguard.sh`.
 4. Restore the existing registry master key or create a new one.
-5. Run `sudo bash scripts/install-scheduled-tasks.sh`.
-6. Run `sudo bash scripts/setup-node-layout.sh`.
-7. Start the infra stack with `./scripts/deploy-infra.sh`.
+5. Run `sudo bash scripts/004-install-scheduled-tasks.sh`.
+6. Run `sudo bash scripts/005-setup-node-layout.sh`.
+7. Start the infra stack with `./scripts/006-deploy-infra.sh`.
 
 From there:
 

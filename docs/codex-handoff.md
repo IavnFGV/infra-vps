@@ -69,7 +69,7 @@ Current scheduled tasks model:
   - `ENABLED=true|false`
   - `CRON_EXPR="*/5 * * * *"`
 - generated cron file on server: `/etc/cron.d/infra-vps-scheduled-tasks`
-- cron sync installer: `scripts/install-scheduled-tasks.sh`
+- cron sync installer: `scripts/004-install-scheduled-tasks.sh`
 - cron sync engine: `scripts/sync-scheduled-tasks.sh`
 
 Current backup tasks:
