@@ -11,6 +11,8 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 SYNC_SCRIPT_SOURCE="${REPO_ROOT}/scripts/sync-scheduled-tasks.sh"
 SYNC_SCRIPT_TARGET="${SYNC_SCRIPT_TARGET:-/usr/local/bin/infra-vps-sync-scheduled-tasks}"
+REGISTER_SCRIPT_SOURCE="${REPO_ROOT}/scripts/register-service-scheduled-tasks.sh"
+REGISTER_SCRIPT_TARGET="${REGISTER_SCRIPT_TARGET:-/usr/local/bin/infra-vps-register-service-scheduled-tasks}"
 SYNC_CRON_FILE="${SYNC_CRON_FILE:-/etc/cron.d/infra-vps-scheduled-tasks-sync}"
 TASKS_DIR="${TASKS_DIR:-${REPO_ROOT}/scheduled-tasks}"
 SERVICE_TASKS_ROOT="${SERVICE_TASKS_ROOT:-/srv/scheduled-tasks.d}"
@@ -38,12 +40,19 @@ if [[ ! -f "${SYNC_SCRIPT_SOURCE}" ]]; then
   fail "Missing sync script source file: ${SYNC_SCRIPT_SOURCE}"
 fi
 
+if [[ ! -f "${REGISTER_SCRIPT_SOURCE}" ]]; then
+  fail "Missing register script source file: ${REGISTER_SCRIPT_SOURCE}"
+fi
+
 if [[ ! -d "${TASKS_DIR}" ]]; then
   fail "Missing tasks directory: ${TASKS_DIR}"
 fi
 
 log "Installing scheduled task sync script"
 run install -m 0755 "${SYNC_SCRIPT_SOURCE}" "${SYNC_SCRIPT_TARGET}"
+
+log "Installing service scheduled task register script"
+run install -m 0755 "${REGISTER_SCRIPT_SOURCE}" "${REGISTER_SCRIPT_TARGET}"
 
 log "Installing cron sync entry"
 cat > "${SYNC_CRON_FILE}" <<EOF
@@ -63,6 +72,7 @@ cat <<EOF
 
 Installed:
   ${SYNC_SCRIPT_TARGET}
+  ${REGISTER_SCRIPT_TARGET}
   ${SYNC_CRON_FILE}
 
 Useful commands:

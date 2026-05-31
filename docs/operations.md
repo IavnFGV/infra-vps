@@ -104,10 +104,16 @@ Service-owned scheduled tasks:
 - each service may ship its own `scheduled-tasks/*.env` and `scheduled-tasks/*.sh`
 - service deploy publishes them as symlinks under `/srv/scheduled-tasks.d/<service>/`
 - the central scheduler rebuild reads both infra tasks and service task symlinks
+- use `scripts/register-service-scheduled-tasks.sh` to publish or refresh them
+- the installer exposes a host helper in `PATH`:
+  - `/usr/local/bin/infra-vps-register-service-scheduled-tasks`
 - set `ENABLED=true|false` and `CRON_EXPR=...` in each task `.env`
 - optional task fields:
   - `RUN_AS=deploy`
   - `WORKDIR=/opt/dockge/stacks/<service>`
+- tasks run on the host, not inside the container
+- for SQLite backups, prefer reading the DB file from `/srv/services/<service>/...`
+  because it is already bind-mounted from the container onto the host
 
 Rebuild cron entries from repo tasks:
 
