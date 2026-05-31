@@ -1,17 +1,19 @@
 # Codex handoff
 
-This repository is intentionally minimal.
-Do not introduce Kubernetes, Traefik, Swarm, Ansible, Terraform, or any dynamic reverse-proxy discovery.
+This repository is intentionally narrow.
+Do not introduce Kubernetes, Traefik, Swarm, Ansible, Terraform, or dynamic
+reverse-proxy discovery.
 
 ## What this repo is responsible for
 
 - one shared Nginx reverse proxy for a single VPS
 - centralized TLS via Certbot webroot flow
 - host-based routing by subdomain
+- the service registry in `registry/services/*.env`
 - one shared external Docker network named `edge`
-- optional secret static path for bot-owned files
+- optional secret static path for service-owned files
 
-## What bot repositories are responsible for
+## What Dockge-managed stacks are responsible for
 
 - their own application code
 - their own deployment lifecycle
@@ -22,7 +24,7 @@ Do not introduce Kubernetes, Traefik, Swarm, Ansible, Terraform, or any dynamic 
 ## Important constraints
 
 - no `container_name`
-- no bot-managed Nginx on `80/443`
+- no app-managed Nginx on `80/443`
 - route by hostname, not by path prefix for apps
 - keep scripts explicit and readable
 - keep file layout easy to understand for humans
@@ -31,7 +33,7 @@ Do not introduce Kubernetes, Traefik, Swarm, Ansible, Terraform, or any dynamic 
 
 - `expose`, not public `ports`, for web services behind Nginx
 - `networks.edge.external: true`
-- alias such as `bot1-app`, `teacherbot-app`, or `tts-api`
+- alias such as `hello-test-app`, `api-app`, or `uptime-kuma-app`
 
 ## Secret path model
 

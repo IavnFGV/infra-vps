@@ -1,74 +1,90 @@
 # GitOps Services
 
-This infrastructure uses a GitOps approach for managing services. All service configurations are stored in Git as environment files, with secrets encrypted using a master key.
+This repo keeps the published service registry in Git. Runtime compose stacks
+live outside this repo and are expected to be managed by Dockge.
 
 ## Workflow
 
-1. **Service Deployment on VPS**: Services are deployed separately in `/opt/services/<service-name>/docker-compose.yml`. Each service must connect to the `edge` Docker network with a unique alias (e.g., `hello-test-app`).
+1. Create or update a stack in Dockge.
+2. Ensure the stack joins the external `edge` network.
+3. Ensure the published container has a stable alias, for example
+   `hello-test-app`.
+4. Add or update `registry/services/<service>.env` in this repo.
+5. Commit and push.
+6. Run `./scripts/apply-services.sh` on the server, or let CI do it.
 
-2. **Local Registration**: Use `python3 scripts/service-wizard.py` to create a service registry file locally.
+`apply-services.sh` owns ingress only:
 
-3. **Commit and Push**: Add the registry file to Git, commit, and push to `main`.
+- generate `nginx/sites/<service>.conf`
+- issue certificates when `ENABLE_HTTPS=true`
+- reload `nginx`
+- remove ingress config for registry entries that were deleted
 
-4. **Automatic Deployment**: GitHub Actions deploys to the VPS, running `apply-services.sh` to generate nginx configs, issue certificates, and reload nginx.
+It does not start, stop, or mutate application stacks.
 
-## Service Removal
+## Service removal
 
-To remove a service:
+To unpublish a service:
 
-1. **Local Removal**: Use `python3 scripts/remove-service-wizard.py` to delete the service registry file locally.
+1. Remove `registry/services/<service>.env`.
+2. Commit and push.
+3. Run `./scripts/apply-services.sh`.
+4. Remove or archive the stack separately in Dockge.
 
-2. **Commit and Push**: Add the removal to Git, commit, and push to `main`.
+## Master key management
 
-3. **Automatic Removal**: GitHub Actions deploys to the VPS, running `apply-services.sh` which detects removed services and deletes their nginx configs, certificates, and reloads nginx.
+- Server location: `/opt/infra-secrets/master.key`
+- Local copy: `~/.infra-vps-master.key`
+- Generation on server: `./scripts/create-master-key.sh`
+- Warning: if the key is lost, `enc:` values cannot be decrypted
 
-## Master Key Management
+To copy the current key locally:
 
-- **Server Location**: `/opt/infra-secrets/master.key`
-- **Local Copy**: `~/.infra-vps-master.key` (for encryption)
-- **Generation**: Run `./scripts/create-master-key.sh` on the server.
-- **Copy to Local**: `scp deploy@178.104.218.159:/opt/infra-secrets/master.key ~/.infra-vps-master.key && chmod 600 ~/.infra-vps-master.key`
-- **Warning**: If the master key is lost, encrypted values cannot be decrypted.
+```bash
+scp deploy@YOUR_SERVER_IP:/opt/infra-secrets/master.key ~/.infra-vps-master.key
+chmod 600 ~/.infra-vps-master.key
+```
 
-## Encrypting Values
-
-To encrypt a plaintext value locally:
+## Encrypting values
 
 ```bash
 ./scripts/encrypt-value.sh "my-secret-value"
 ```
 
-This outputs `enc:<ciphertext>` which can be used in service env files.
+This prints `enc:<ciphertext>` for use in registry files.
 
-## Service Registry Format
+## Registry format
 
-Services are defined in `registry/services/<service-name>.env`:
+Use [templates/service.env.example](/workspaces/infra-vps/templates/service.env.example)
+as the base template.
 
-```
-SERVICE_NAME=hello-test
-DOMAIN=hello-test-178-104-218-159.nip.io
-UPSTREAM_HOST=hello-test-app
-UPSTREAM_PORT=80
+Required fields:
 
-ENABLE_HTTPS=true
-LETSENCRYPT_EMAIL=enc:ENCRYPTED_EMAIL_HERE
+- `SERVICE_NAME`
+- `DOMAIN`
+- `UPSTREAM_HOST`
+- `UPSTREAM_PORT`
 
-STATIC_ENABLED=false
-PROXY_MODE=files
-STATIC_PUBLIC_PREFIX=/static
-STATIC_SECRET=enc:ENCRYPTED_SECRET_HERE
-STATIC_DIR=/srv/service-static/hello-test
-```
+Optional TLS fields:
 
-- `LETSENCRYPT_EMAIL` and `STATIC_SECRET` must be encrypted if present.
-- `STATIC_SECRET` is required if `STATIC_ENABLED=true`.
-- `PROXY_MODE` supports `files`, `proxy`, and `both`.
-- `STATIC_MODE` is still accepted as a legacy fallback for backward compatibility.
-- `STATIC_DIR` is required when `PROXY_MODE=files` or `PROXY_MODE=both`.
-- With `PROXY_MODE=proxy`, requests to `<STATIC_PUBLIC_PREFIX>/<STATIC_SECRET>/...` are proxied to the app upstream with the secret prefix stripped.
-- With `PROXY_MODE=both`, Nginx first tries to serve a file from `STATIC_DIR`; if nothing matches, it proxies the request to the app upstream with the secret prefix stripped.
+- `ENABLE_HTTPS=true|false`
+- `LETSENCRYPT_EMAIL=enc:...` when HTTPS is enabled
 
-## Example Service docker-compose.yml
+Optional secret static path fields:
+
+- `STATIC_ENABLED=true|false`
+- `PROXY_MODE=files|proxy|both`
+- `STATIC_PUBLIC_PREFIX=/static`
+- `STATIC_SECRET=enc:...`
+- `STATIC_DIR=/srv/service-static/<service>` for `files` and `both`
+
+Behavior:
+
+- `files`: serve files from `STATIC_DIR`
+- `proxy`: forward the secret path to the upstream app
+- `both`: serve files first, then fall back to the app
+
+## Example stack contract
 
 ```yaml
 services:
@@ -88,9 +104,8 @@ networks:
     name: edge
 ```
 
-## Important Notes
+## Rules
 
-- Nginx configs in `nginx/sites/*.conf` are generated automatically. Do not edit them manually.
-- Do not run service wizards on the server for GitOps flow.
+- Do not edit `nginx/sites/*.conf` manually.
 - Do not store plaintext secrets in Git.
-- Services must be running and connected to the `edge` network before registration.
+- Do not register a service before its stack is already reachable on `edge`.

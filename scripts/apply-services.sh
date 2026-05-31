@@ -3,6 +3,7 @@ set -euo pipefail
 
 # Applies services from registry/services/*.env.
 # Generates nginx configs, issues certificates when needed, and reloads nginx.
+# Application lifecycle is managed outside this repo, for example by Dockge.
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT_DIR}"
@@ -228,7 +229,7 @@ validate_service() {
 
     if [[ "${STATIC_ENABLED:-false}" == "true" ]]; then
         require_var "STATIC_SECRET" "${SERVICE_NAME}"
-        if [[ "${PROXY_MODE:-${STATIC_MODE:-files}}" == "files" || "${PROXY_MODE:-${STATIC_MODE:-files}}" == "both" ]]; then
+        if [[ "${PROXY_MODE:-files}" == "files" || "${PROXY_MODE:-files}" == "both" ]]; then
             require_var "STATIC_DIR" "${SERVICE_NAME}"
         fi
     fi
@@ -266,7 +267,7 @@ apply_service() {
 
     unset SERVICE_NAME DOMAIN UPSTREAM_HOST UPSTREAM_PORT
     unset ENABLE_HTTPS LETSENCRYPT_EMAIL
-    unset STATIC_ENABLED PROXY_MODE STATIC_MODE STATIC_PUBLIC_PREFIX STATIC_SECRET STATIC_DIR
+    unset STATIC_ENABLED PROXY_MODE STATIC_PUBLIC_PREFIX STATIC_SECRET STATIC_DIR
 
     log "Processing service file: ${service_file}"
 
@@ -278,7 +279,7 @@ apply_service() {
 
     ENABLE_HTTPS="${ENABLE_HTTPS:-false}"
     STATIC_ENABLED="${STATIC_ENABLED:-false}"
-    PROXY_MODE="${PROXY_MODE:-${STATIC_MODE:-files}}"
+    PROXY_MODE="${PROXY_MODE:-files}"
     STATIC_PUBLIC_PREFIX="$(normalize_static_prefix "${STATIC_PUBLIC_PREFIX:-/static}")"
 
     if [[ "${PROXY_MODE}" != "files" && "${PROXY_MODE}" != "proxy" && "${PROXY_MODE}" != "both" ]]; then
@@ -353,7 +354,8 @@ if [[ "${found_services}" == "false" ]]; then
     log "No service registry files found in ${SERVICES_DIR}"
 fi
 
-# Remove configs for services no longer in registry
+# Remove configs for services no longer in registry.
+# This repo owns ingress state only; it does not stop application stacks.
 log "Checking for removed services"
 for config_file in "${NGINX_SITES_DIR}"/*.conf; do
     if [[ ! -f "${config_file}" ]]; then
@@ -370,20 +372,21 @@ for config_file in "${NGINX_SITES_DIR}"/*.conf; do
     # Check if service still exists in registry
     registry_file="${SERVICES_DIR}/${config_name}.env"
     if [[ ! -f "${registry_file}" ]]; then
+        cert_domain="$(awk '/server_name / {print $2}' "${config_file}" | head -n1 | tr -d ';' || true)"
         log "Removing config for removed service: ${config_name}"
         rm -f "${config_file}"
-        
-        # Stop docker service if it exists
-        service_compose="/opt/services/${config_name}/docker-compose.yml"
-        if [[ -f "${service_compose}" ]]; then
-            log "Stopping docker service: ${config_name}"
-            (cd "/opt/services/${config_name}" && docker compose down) || log "Warning: failed to stop service ${config_name}"
+
+        # Optionally remove certificate state if it exists.
+        # Certificate directories are keyed by domain, not service name, so
+        # automatic cleanup is only best-effort based on the generated config.
+        cert_dir="${ROOT_DIR}/certbot/conf/live/${cert_domain}"
+        if [[ -z "${cert_domain}" ]]; then
+            log "Warning: could not determine certificate domain for ${config_name}; skipping certificate cleanup"
+            continue
         fi
-        
-        # Optionally remove certificate if it exists
-        cert_dir="${ROOT_DIR}/certbot/conf/live/${config_name}"
+
         if [[ -d "${cert_dir}" ]]; then
-            log "Removing certificate for removed service: ${config_name}"
+            log "Removing certificate for removed service domain: ${cert_domain}"
             rm -rf "${cert_dir}"
         fi
     fi

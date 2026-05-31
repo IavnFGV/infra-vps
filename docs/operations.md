@@ -2,42 +2,59 @@
 
 ## Common commands
 
-Start stack:
+Start infra stack:
 
 ```bash
 docker compose up -d
 ```
 
-Stop stack:
+Stop infra stack:
 
 ```bash
 docker compose down
 ```
 
-Check Nginx config:
+Check `nginx` config:
 
 ```bash
 ./scripts/check-nginx.sh
 ```
 
-Reload Nginx:
+Reload `nginx`:
 
 ```bash
 ./scripts/reload-nginx.sh
 ```
 
-List configured sites:
+List generated site configs:
 
 ```bash
 ./scripts/list-sites.sh
 ```
 
-## Add one more bot later
+Apply the service registry:
 
-Repeat the same lifecycle:
+```bash
+./scripts/apply-services.sh
+```
 
-- prepare bot Compose with alias in `edge`
-- add site config
-- reload Nginx
-- issue cert
-- enable HTTPS
+## Normal service lifecycle
+
+1. Start or update the stack in Dockge.
+2. Ensure the stack joins `edge` and exposes a stable alias.
+3. Add or edit `registry/services/<service>.env`.
+4. Run `./scripts/apply-services.sh`.
+
+## WireGuard lifecycle
+
+Fresh setup:
+
+```bash
+sudo SERVER_PUBLIC_IP=<server-ip> bash scripts/setup-wireguard.sh
+```
+
+Full rebuild:
+
+```bash
+sudo SERVER_PUBLIC_IP=<server-ip> bash scripts/reset-wireguard.sh
+```

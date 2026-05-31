@@ -1,0 +1,17 @@
+services:
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    restart: unless-stopped
+    expose:
+      - "3001"
+    volumes:
+      - /srv/services/uptime-kuma:/app/data
+    networks:
+      edge:
+        aliases:
+          - uptime-kuma-app
+
+networks:
+  edge:
+    external: true
+    name: edge

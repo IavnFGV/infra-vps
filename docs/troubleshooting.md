@@ -9,8 +9,8 @@ Symptoms:
 
 Check:
 
-1. bot container is running
-2. bot service is connected to `edge`
+1. the application container is running
+2. the service is connected to `edge`
 3. alias matches Nginx config exactly
 4. internal port is correct
 
@@ -35,7 +35,7 @@ Check:
 Check:
 
 1. the secret prefix matches config
-2. files exist in `data/bot-static/<name>/`
+2. files exist in the configured `STATIC_DIR`
 3. `alias` target directory exists
 4. file path under the secret prefix is correct
 

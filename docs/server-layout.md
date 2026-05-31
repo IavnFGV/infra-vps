@@ -3,21 +3,37 @@
 Suggested layout on the VPS:
 
 ```text
-/opt/infra-vps-minimal
-/opt/bots/bot1
-/opt/bots/bot2
-/opt/bots/tts
+/opt/infra-vps
+/opt/dockge
+/opt/dockge/stacks
+/srv/services
+/srv/service-static
+/opt/infra-secrets
+/etc/wireguard
 ```
+
+## Ownership
+
+- `/opt/infra-vps` - this repo
+- `/opt/dockge` - Dockge install
+- `/opt/dockge/stacks/<stack>` - compose stacks managed by Dockge
+- `/srv/services/<service>` - persistent application data
+- `/srv/service-static/<service>` - optional files for `STATIC_DIR`
+- `/opt/infra-secrets/master.key` - registry encryption key
+- `/etc/wireguard` - host WireGuard state
+
+## Notes
+
+- Keep application data out of the git repo.
+- Keep WireGuard state on the host only.
+- Keep `edge` as the single shared Docker network for published services.
+- If a service uses `PROXY_MODE=files` or `PROXY_MODE=both`, point
+  `STATIC_DIR` at its directory under `/srv/service-static`.
 
 Example:
 
-- infra repo cloned into `/opt/infra-vps-minimal`
-- each bot repo cloned into its own directory under `/opt/bots/`
-
-If a bot needs static files served directly by Nginx in `PROXY_MODE=files`, mount the matching directory from:
-
 ```text
-/opt/infra-vps-minimal/data/bot-static/<bot-name>
+/opt/dockge/stacks/hello-test
+/srv/services/hello-test
+/srv/service-static/hello-test
 ```
-
-into the bot container.

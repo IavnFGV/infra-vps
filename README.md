@@ -1,29 +1,34 @@
-# Minimal VPS infra repo for multiple bots
+# VPS control plane
 
-This repository provides a small and explicit infrastructure layer for a single VPS:
+This repository is the control plane for one VPS with multiple self-hosted services.
 
-- one shared Nginx reverse proxy
+It owns:
+
+- shared `nginx` ingress
 - centralized TLS with Certbot
-- one external Docker network named `edge`
-- several independent bot repositories deployed separately
-- optional secret path that either serves files directly or proxies into an app
+- the `registry/services/*.env` service registry
+- the external Docker network `edge`
+- WireGuard bootstrap and reset scripts
 
-## Main idea
-
-Bot repositories do **not** expose ports `80/443` directly.
-They only connect their internal web services to the shared Docker network `edge`.
-Nginx lives here, in the infra repository, and routes requests by hostname.
+It does not own application lifecycle. Application stacks should be managed by
+Dockge and attached to `edge` with stable aliases that match the registry.
 
 ## Quick start
 
-1. Copy `.env.example` to `.env` and adjust values if needed.
-2. Create shared network:
-   `./scripts/init-edge-network.sh`
-3. Start infra stack:
-   `docker compose up -d`
-4. Check Nginx:
-   `./scripts/check-nginx.sh`
+1. Clone the repo to `/opt/infra-vps`.
+2. Run `sudo bash scripts/setup-server.sh` on a fresh node.
+3. Run `sudo SERVER_PUBLIC_IP=<server-ip> bash scripts/setup-wireguard.sh`.
+4. Create the shared Docker network with `./scripts/init-edge-network.sh`.
+5. Start the infra stack with `docker compose up -d`.
+6. Validate `nginx` with `./scripts/check-nginx.sh`.
 
-After that you can add sites for individual bots.
+From there:
 
-See `docs/` for step-by-step usage.
+- Dockge manages compose stacks.
+- `registry/services/*.env` defines domains, upstream aliases, TLS, and optional
+  secret static paths.
+- `./scripts/apply-services.sh` renders and applies ingress state from the
+  registry.
+
+See [docs/overview.md](/workspaces/infra-vps/docs/overview.md) for the target
+layout and operating model.

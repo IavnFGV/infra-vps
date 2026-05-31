@@ -1,18 +1,22 @@
 # Certificates
 
-## HTTP first, HTTPS second
+## Ownership
 
-The simplest flow is:
+This repo owns certificate issuance and renewal for published services.
+Application stacks should not manage their own public certificates on the same
+VPS.
 
-1. create HTTP config
-2. reload Nginx
-3. issue certificate through webroot
-4. switch site to HTTPS config
-5. reload Nginx again
+## Flow
 
-This is intentionally boring and explicit.
+`./scripts/apply-services.sh` follows the boring sequence:
 
-## Issue certificate
+1. generate the HTTP config
+2. reload `nginx`
+3. issue the certificate with Certbot webroot
+4. rewrite the service config to HTTPS
+5. reload `nginx` again
+
+## Manual issue path
 
 ```bash
 ./scripts/issue-cert.sh example-203-0-113-10.nip.io you@example.com
@@ -20,8 +24,8 @@ This is intentionally boring and explicit.
 
 ## Renew certificates
 
-This repository does not automate renewal with a daemon.
-Use cron or a systemd timer if needed, for example:
+This repo does not currently ship an automatic renewal timer.
+If you want renewal outside deploy runs, use cron or systemd, for example:
 
 ```bash
 docker compose run --rm certbot renew --webroot --webroot-path /var/www/certbot
