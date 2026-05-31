@@ -8,6 +8,7 @@ Suggested layout on the VPS:
 /opt/dockge/stacks
 /srv/services
 /srv/service-static
+/srv/scheduled-tasks.d
 /srv/drive-sync
 /opt/infra-secrets
 /etc/wireguard
@@ -21,6 +22,7 @@ Suggested layout on the VPS:
 - `/opt/dockge/stacks/<stack>` - compose stacks managed by Dockge, owned by `deploy`
 - `/srv/services/<service>` - persistent application data, owned by `deploy`
 - `/srv/service-static/<service>` - secret static files for the service, owned by `deploy`
+- `/srv/scheduled-tasks.d/<service>` - symlinked scheduled tasks published by services, owned by `deploy`
 - `/srv/drive-sync/...` - push-only sync root for Google Drive exports and convenience copies
 - `/opt/infra-secrets/master.key` - registry encryption key
 - `/etc/wireguard` - host WireGuard state

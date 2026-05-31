@@ -13,6 +13,7 @@ SYNC_SCRIPT_SOURCE="${REPO_ROOT}/scripts/sync-scheduled-tasks.sh"
 SYNC_SCRIPT_TARGET="${SYNC_SCRIPT_TARGET:-/usr/local/bin/infra-vps-sync-scheduled-tasks}"
 SYNC_CRON_FILE="${SYNC_CRON_FILE:-/etc/cron.d/infra-vps-scheduled-tasks-sync}"
 TASKS_DIR="${TASKS_DIR:-${REPO_ROOT}/scheduled-tasks}"
+SERVICE_TASKS_ROOT="${SERVICE_TASKS_ROOT:-/srv/scheduled-tasks.d}"
 SYNC_LOG_FILE="${SYNC_LOG_FILE:-/var/log/infra-vps-sync-scheduled-tasks.log}"
 
 timestamp() {
@@ -49,13 +50,13 @@ cat > "${SYNC_CRON_FILE}" <<EOF
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-* * * * * root TASKS_DIR=${TASKS_DIR} ${SYNC_SCRIPT_TARGET} >> ${SYNC_LOG_FILE} 2>&1
+* * * * * root TASKS_DIR=${TASKS_DIR} SERVICE_TASKS_ROOT=${SERVICE_TASKS_ROOT} ${SYNC_SCRIPT_TARGET} >> ${SYNC_LOG_FILE} 2>&1
 EOF
 
 run chmod 0644 "${SYNC_CRON_FILE}"
 
 log "Running initial cron sync"
-run env TASKS_DIR="${TASKS_DIR}" "${SYNC_SCRIPT_TARGET}"
+run env TASKS_DIR="${TASKS_DIR}" SERVICE_TASKS_ROOT="${SERVICE_TASKS_ROOT}" "${SYNC_SCRIPT_TARGET}"
 
 log "Scheduled task install complete"
 cat <<EOF
@@ -68,5 +69,5 @@ Useful commands:
   cat /etc/cron.d/infra-vps-scheduled-tasks
   cat ${SYNC_CRON_FILE}
   tail -n 100 ${SYNC_LOG_FILE}
-  env TASKS_DIR=${TASKS_DIR} ${SYNC_SCRIPT_TARGET}
+  env TASKS_DIR=${TASKS_DIR} SERVICE_TASKS_ROOT=${SERVICE_TASKS_ROOT} ${SYNC_SCRIPT_TARGET}
 EOF

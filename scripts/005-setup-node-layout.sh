@@ -11,6 +11,7 @@ DOCKGE_STACKS_DIR="${DOCKGE_STACKS_DIR:-/opt/dockge/stacks}"
 DOCKGE_DATA_DIR="${DOCKGE_DATA_DIR:-/opt/dockge/data}"
 SERVICES_ROOT="${SERVICES_ROOT:-/srv/services}"
 STATIC_ROOT="${STATIC_ROOT:-/srv/service-static}"
+SERVICE_TASKS_ROOT="${SERVICE_TASKS_ROOT:-/srv/scheduled-tasks.d}"
 
 if ! id -u "${NODE_OWNER}" >/dev/null 2>&1; then
   echo "User not found: ${NODE_OWNER}"
@@ -21,14 +22,17 @@ mkdir -p "${DOCKGE_STACKS_DIR}"
 mkdir -p "${DOCKGE_DATA_DIR}"
 mkdir -p "${SERVICES_ROOT}"
 mkdir -p "${STATIC_ROOT}"
+mkdir -p "${SERVICE_TASKS_ROOT}"
 
 chown -R "${NODE_OWNER}:${NODE_OWNER}" /opt/dockge
 chown -R "${NODE_OWNER}:${NODE_OWNER}" "${SERVICES_ROOT}"
 chown -R "${NODE_OWNER}:${NODE_OWNER}" "${STATIC_ROOT}"
+chown -R "${NODE_OWNER}:${NODE_OWNER}" "${SERVICE_TASKS_ROOT}"
 
 echo "Node layout prepared:"
 echo "  ${DOCKGE_STACKS_DIR}"
 echo "  ${DOCKGE_DATA_DIR}"
 echo "  ${SERVICES_ROOT}"
 echo "  ${STATIC_ROOT}"
+echo "  ${SERVICE_TASKS_ROOT}"
 echo "Owner: ${NODE_OWNER}:${NODE_OWNER}"

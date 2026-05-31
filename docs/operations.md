@@ -99,10 +99,26 @@ Install repo-managed scheduled tasks:
 sudo bash scripts/004-install-scheduled-tasks.sh
 ```
 
+Service-owned scheduled tasks:
+
+- each service may ship its own `scheduled-tasks/*.env` and `scheduled-tasks/*.sh`
+- service deploy publishes them as symlinks under `/srv/scheduled-tasks.d/<service>/`
+- the central scheduler rebuild reads both infra tasks and service task symlinks
+- set `ENABLED=true|false` and `CRON_EXPR=...` in each task `.env`
+- optional task fields:
+  - `RUN_AS=deploy`
+  - `WORKDIR=/opt/dockge/stacks/<service>`
+
 Rebuild cron entries from repo tasks:
 
 ```bash
 sudo env TASKS_DIR=/opt/infra-vps/scheduled-tasks /usr/local/bin/infra-vps-sync-scheduled-tasks
+```
+
+Rebuild cron entries including service tasks:
+
+```bash
+sudo env TASKS_DIR=/opt/infra-vps/scheduled-tasks SERVICE_TASKS_ROOT=/srv/scheduled-tasks.d /usr/local/bin/infra-vps-sync-scheduled-tasks
 ```
 
 Check generated cron entries:

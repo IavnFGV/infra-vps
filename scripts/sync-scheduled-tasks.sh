@@ -10,6 +10,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 TASKS_DIR="${TASKS_DIR:-${REPO_ROOT}/scheduled-tasks}"
+SERVICE_TASKS_ROOT="${SERVICE_TASKS_ROOT:-/srv/scheduled-tasks.d}"
 CRON_FILE="${CRON_FILE:-/etc/cron.d/infra-vps-scheduled-tasks}"
 LOG_DIR="${LOG_DIR:-/var/log/infra-vps-scheduled-tasks}"
 
@@ -40,48 +41,87 @@ trap 'rm -f "${tmp_file}"' EXIT
   echo "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
   echo
   echo "# Managed by scripts/sync-scheduled-tasks.sh"
-  echo "# Source directory: ${TASKS_DIR}"
+  echo "# Infra tasks source directory: ${TASKS_DIR}"
+  echo "# Service tasks source directory: ${SERVICE_TASKS_ROOT}"
 } > "${tmp_file}"
 
-shopt -s nullglob
-task_envs=("${TASKS_DIR}"/*.env)
-shopt -u nullglob
+build_cron_command() {
+  local run_as="$1"
+  local workdir="$2"
+  local task_script="$3"
 
-for env_file in "${task_envs[@]}"; do
-  task_name="$(basename "${env_file}" .env)"
-  task_script="${TASKS_DIR}/${task_name}.sh"
-
-  if [[ ! -f "${task_script}" ]]; then
-    log "Skipping ${task_name}: missing task script ${task_script}"
-    continue
+  if [[ "${run_as}" == "root" ]]; then
+    printf 'cd %q && bash %q' "${workdir}" "${task_script}"
+    return 0
   fi
 
-  unset ENABLED CRON_EXPR
-  # shellcheck disable=SC1090
-  source "${env_file}"
+  printf 'runuser -u %q -- bash -lc %q' \
+    "${run_as}" \
+    "cd ${workdir@Q} && bash ${task_script@Q}"
+}
 
-  if [[ "${ENABLED:-false}" != "true" ]]; then
-    log "Skipping ${task_name}: ENABLED is not true"
-    continue
-  fi
+process_task_directory() {
+  local task_dir="$1"
+  local namespace="$2"
 
-  if [[ -z "${CRON_EXPR:-}" ]]; then
-    log "Skipping ${task_name}: CRON_EXPR is empty"
-    continue
-  fi
+  shopt -s nullglob
+  local task_envs=("${task_dir}"/*.env)
+  shopt -u nullglob
 
-  cron_log="${LOG_DIR}/${task_name}.log"
+  for env_file in "${task_envs[@]}"; do
+    local task_name task_script cron_log cron_command
+    task_name="$(basename "${env_file}" .env)"
+    task_script="${task_dir}/${task_name}.sh"
 
-  {
-    echo
-    echo "# ${task_name}"
-    printf '%s root cd %s && bash %s >> %s 2>&1\n' \
-      "${CRON_EXPR}" \
-      "${REPO_ROOT}" \
-      "${task_script}" \
-      "${cron_log}"
-  } >> "${tmp_file}"
-done
+    if [[ ! -f "${task_script}" ]]; then
+      log "Skipping ${namespace}/${task_name}: missing task script ${task_script}"
+      continue
+    fi
+
+    unset ENABLED CRON_EXPR RUN_AS WORKDIR
+    # shellcheck disable=SC1090
+    source "${env_file}"
+
+    if [[ "${ENABLED:-false}" != "true" ]]; then
+      log "Skipping ${namespace}/${task_name}: ENABLED is not true"
+      continue
+    fi
+
+    if [[ -z "${CRON_EXPR:-}" ]]; then
+      log "Skipping ${namespace}/${task_name}: CRON_EXPR is empty"
+      continue
+    fi
+
+    RUN_AS="${RUN_AS:-root}"
+    WORKDIR="${WORKDIR:-${task_dir}}"
+
+    if ! id -u "${RUN_AS}" >/dev/null 2>&1; then
+      log "Skipping ${namespace}/${task_name}: RUN_AS user not found: ${RUN_AS}"
+      continue
+    fi
+
+    cron_log="${LOG_DIR}/${namespace}__${task_name}.log"
+    cron_command="$(build_cron_command "${RUN_AS}" "${WORKDIR}" "${task_script}")"
+
+    {
+      echo
+      echo "# ${namespace}/${task_name}"
+      printf '%s root %s >> %s 2>&1\n' \
+        "${CRON_EXPR}" \
+        "${cron_command}" \
+        "${cron_log}"
+    } >> "${tmp_file}"
+  done
+}
+
+process_task_directory "${TASKS_DIR}" "infra"
+
+if [[ -d "${SERVICE_TASKS_ROOT}" ]]; then
+  while IFS= read -r -d '' service_dir; do
+    service_name="$(basename "${service_dir}")"
+    process_task_directory "${service_dir}" "${service_name}"
+  done < <(find "${SERVICE_TASKS_ROOT}" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+fi
 
 install -m 0644 "${tmp_file}" "${CRON_FILE}"
 log "Cron file updated: ${CRON_FILE}"
