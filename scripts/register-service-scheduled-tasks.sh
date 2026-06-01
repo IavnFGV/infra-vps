@@ -39,6 +39,12 @@ if ! id -u "${NODE_OWNER}" >/dev/null 2>&1; then
 fi
 
 SERVICE_TASKS_LINK_DIR="${SERVICE_TASKS_ROOT}/${SERVICE_NAME}"
+registered_count=0
+script_only_count=0
+env_only_count=0
+registered_tasks=()
+script_only_tasks=()
+env_only_tasks=()
 
 mkdir -p "${SERVICE_TASKS_ROOT}"
 chown -R "${NODE_OWNER}:${NODE_OWNER}" "${SERVICE_TASKS_ROOT}"
@@ -52,6 +58,30 @@ if [[ -d "${SERVICE_TASKS_SOURCE_DIR}" ]]; then
   done
 
   chown -R "${NODE_OWNER}:${NODE_OWNER}" "${SERVICE_TASKS_LINK_DIR}"
+
+  shopt -s nullglob
+  env_files=("${SERVICE_TASKS_SOURCE_DIR}"/*.env)
+  sh_files=("${SERVICE_TASKS_SOURCE_DIR}"/*.sh)
+  shopt -u nullglob
+
+  for env_file in "${env_files[@]}"; do
+    task_name="$(basename "${env_file}" .env)"
+    if [[ -f "${SERVICE_TASKS_SOURCE_DIR}/${task_name}.sh" ]]; then
+      ((registered_count+=1))
+      registered_tasks+=("${task_name}")
+    else
+      ((env_only_count+=1))
+      env_only_tasks+=("${task_name}")
+    fi
+  done
+
+  for sh_file in "${sh_files[@]}"; do
+    task_name="$(basename "${sh_file}" .sh)"
+    if [[ ! -f "${SERVICE_TASKS_SOURCE_DIR}/${task_name}.env" ]]; then
+      ((script_only_count+=1))
+      script_only_tasks+=("${task_name}")
+    fi
+  done
 else
   rm -rf "${SERVICE_TASKS_LINK_DIR}"
 fi
@@ -60,4 +90,19 @@ if [[ -x "${SYNC_COMMAND}" ]]; then
   env TASKS_DIR="${TASKS_DIR}" SERVICE_TASKS_ROOT="${SERVICE_TASKS_ROOT}" "${SYNC_COMMAND}"
 fi
 
-echo "Service scheduled tasks registered for ${SERVICE_NAME}"
+if [[ ! -d "${SERVICE_TASKS_SOURCE_DIR}" ]]; then
+  echo "No scheduled-tasks directory for ${SERVICE_NAME}; registration cleared"
+elif [[ "${registered_count}" -eq 0 ]]; then
+  echo "No complete scheduled task definitions found for ${SERVICE_NAME} (need matching .env + .sh files)"
+else
+  echo "Registered ${registered_count} scheduled task definition(s) for ${SERVICE_NAME}"
+  printf 'Registered tasks: %s\n' "$(IFS=', '; echo "${registered_tasks[*]}")"
+fi
+
+if [[ "${script_only_count}" -gt 0 ]]; then
+  printf 'Missing .env for tasks: %s\n' "$(IFS=', '; echo "${script_only_tasks[*]}")"
+fi
+
+if [[ "${env_only_count}" -gt 0 ]]; then
+  printf 'Missing .sh for tasks: %s\n' "$(IFS=', '; echo "${env_only_tasks[*]}")"
+fi
