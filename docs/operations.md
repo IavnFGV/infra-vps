@@ -136,6 +136,20 @@ sudo infra-vps-register \
   --service-dir /opt/dockge/stacks/englishbot
 ```
 
+For `nip.io`-style domains you can avoid hardcoding the server IP in the card:
+
+```env
+DOMAIN_TEMPLATE=englishbot-test-${SERVER_PUBLIC_IP_DASHED}.nip.io
+```
+
+The helper resolves:
+- `SERVER_PUBLIC_IP`
+- `SERVER_PUBLIC_IP_DASHED`
+
+from `/etc/default/infra-vps-node`, which is written during host bootstrap and
+also refreshed by `scripts/004-install-scheduled-tasks.sh`, and falls back to
+automatic public IP detection if that file is missing.
+
 Rebuild cron entries from repo tasks:
 
 ```bash

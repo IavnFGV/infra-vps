@@ -16,6 +16,7 @@ SERVER_VPN_IP="${SERVER_VPN_IP:-10.0.0.1/24}"
 WG_PORT="${WG_PORT:-51820}"
 CLIENT_DNS="${CLIENT_DNS:-8.8.8.8, 1.1.1.1}"
 SERVER_PUBLIC_IP="${SERVER_PUBLIC_IP:-$(curl -4 -fsSL ifconfig.me 2>/dev/null || true)}"
+NODE_CONFIG_FILE="${NODE_CONFIG_FILE:-/etc/default/infra-vps-node}"
 BACKUP_ROOT="${BACKUP_ROOT:-/var/backups/wireguard-setup}"
 UPLINK_IFACE="${UPLINK_IFACE:-$(ip route show default 2>/dev/null | awk '/default/ {print $5; exit}')}"
 FORCE="${FORCE:-0}"
@@ -35,6 +36,7 @@ BACKUP_DIR="${BACKUP_ROOT}/${TIMESTAMP}"
 SERVER_CONF="${WG_DIR}/${WG_IFACE}.conf"
 SERVER_PRIVATE_KEY_FILE="${WG_DIR}/privatekey"
 SERVER_PUBLIC_KEY_FILE="${WG_DIR}/publickey"
+SERVER_PUBLIC_IP_DASHED="${SERVER_PUBLIC_IP//./-}"
 
 echo "[1/8] Installing WireGuard packages..."
 apt-get update
@@ -89,6 +91,12 @@ fi
   printf 'SERVER_PUBLIC_IP=%q\n' "${SERVER_PUBLIC_IP}"
   printf 'CLIENT_DNS=%q\n' "${CLIENT_DNS}"
 } >"${WG_DIR}/.server-meta"
+
+cat >"${NODE_CONFIG_FILE}" <<EOF
+SERVER_PUBLIC_IP=${SERVER_PUBLIC_IP}
+SERVER_PUBLIC_IP_DASHED=${SERVER_PUBLIC_IP_DASHED}
+EOF
+chmod 0644 "${NODE_CONFIG_FILE}"
 
 echo "[6/8] Setting permissions and sysctl..."
 chmod 700 "${WG_DIR}"

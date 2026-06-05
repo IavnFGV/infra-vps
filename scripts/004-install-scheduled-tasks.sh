@@ -18,6 +18,7 @@ REGISTER_SERVICE_SCRIPT_TARGET="${REGISTER_SERVICE_SCRIPT_TARGET:-/usr/local/bin
 REGISTER_SERVICE_ALIAS_TARGET="${REGISTER_SERVICE_ALIAS_TARGET:-/usr/local/bin/infra-vps-register}"
 CONFIG_FILE="${CONFIG_FILE:-/etc/default/infra-vps-scheduled-tasks}"
 SERVICE_CONFIG_FILE="${SERVICE_CONFIG_FILE:-/etc/default/infra-vps-service-registration}"
+NODE_CONFIG_FILE="${NODE_CONFIG_FILE:-/etc/default/infra-vps-node}"
 SYNC_CRON_FILE="${SYNC_CRON_FILE:-/etc/cron.d/infra-vps-scheduled-tasks-sync}"
 TASKS_DIR="${TASKS_DIR:-${REPO_ROOT}/scheduled-tasks}"
 SERVICE_TASKS_ROOT="${SERVICE_TASKS_ROOT:-/srv/scheduled-tasks.d}"
@@ -40,6 +41,19 @@ fail() {
 run() {
   log "+ $*"
   "$@"
+}
+
+detect_server_public_ip() {
+  local detected_ip=""
+
+  detected_ip="$(curl -4 -fsSL ifconfig.me 2>/dev/null || true)"
+  if [[ -n "${detected_ip}" ]]; then
+    printf "%s" "${detected_ip}"
+    return 0
+  fi
+
+  detected_ip="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for (i=1; i<=NF; i++) if ($i == "src") {print $(i+1); exit}}' || true)"
+  printf "%s" "${detected_ip}"
 }
 
 if [[ ! -f "${SYNC_SCRIPT_SOURCE}" ]]; then
@@ -85,6 +99,15 @@ NODE_OWNER=deploy
 EOF
 run chmod 0644 "${SERVICE_CONFIG_FILE}"
 
+SERVER_PUBLIC_IP="${SERVER_PUBLIC_IP:-$(detect_server_public_ip)}"
+SERVER_PUBLIC_IP_DASHED="${SERVER_PUBLIC_IP//./-}"
+log "Writing node config"
+cat > "${NODE_CONFIG_FILE}" <<EOF
+SERVER_PUBLIC_IP=${SERVER_PUBLIC_IP}
+SERVER_PUBLIC_IP_DASHED=${SERVER_PUBLIC_IP_DASHED}
+EOF
+run chmod 0644 "${NODE_CONFIG_FILE}"
+
 log "Installing cron sync entry"
 cat > "${SYNC_CRON_FILE}" <<EOF
 SHELL=/bin/bash
@@ -108,6 +131,7 @@ Installed:
   ${REGISTER_SERVICE_ALIAS_TARGET}
   ${CONFIG_FILE}
   ${SERVICE_CONFIG_FILE}
+  ${NODE_CONFIG_FILE}
   ${SYNC_CRON_FILE}
 
 Useful commands:

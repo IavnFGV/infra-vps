@@ -7,6 +7,7 @@ if [[ "${EUID}" -ne 0 ]]; then
 fi
 
 CONFIG_FILE="${CONFIG_FILE:-/etc/default/infra-vps-service-registration}"
+NODE_CONFIG_FILE="${NODE_CONFIG_FILE:-/etc/default/infra-vps-node}"
 HOST_SERVICE_REGISTRY_DIR="${HOST_SERVICE_REGISTRY_DIR:-/srv/service-registry.d}"
 REGISTER_TASKS_COMMAND="${REGISTER_TASKS_COMMAND:-/usr/local/bin/infra-vps-register-service-scheduled-tasks}"
 APPLY_SERVICES_SCRIPT="${APPLY_SERVICES_SCRIPT:-}"
@@ -18,6 +19,11 @@ SKIP_TASKS=false
 if [[ -f "${CONFIG_FILE}" ]]; then
   # shellcheck disable=SC1090
   source "${CONFIG_FILE}"
+fi
+
+if [[ -f "${NODE_CONFIG_FILE}" ]]; then
+  # shellcheck disable=SC1090
+  source "${NODE_CONFIG_FILE}"
 fi
 
 usage() {
@@ -112,7 +118,7 @@ resolve_relative_path() {
 }
 
 unset SERVICE_NAME DOMAIN UPSTREAM_HOST UPSTREAM_PORT ENABLE_HTTPS LETSENCRYPT_EMAIL STATIC_SECRET
-unset SERVICE_TASKS_SOURCE_DIR
+unset SERVICE_TASKS_SOURCE_DIR DOMAIN_TEMPLATE
 # shellcheck disable=SC1090
 source "${CARD_PATH}"
 
@@ -126,10 +132,44 @@ require_var() {
 }
 
 require_var "SERVICE_NAME"
-require_var "DOMAIN"
 require_var "UPSTREAM_HOST"
 require_var "UPSTREAM_PORT"
 require_var "STATIC_SECRET"
+
+detect_server_public_ip() {
+  local detected_ip=""
+
+  detected_ip="$(curl -4 -fsSL ifconfig.me 2>/dev/null || true)"
+  if [[ -n "${detected_ip}" ]]; then
+    printf "%s" "${detected_ip}"
+    return 0
+  fi
+
+  detected_ip="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for (i=1; i<=NF; i++) if ($i == \"src\") {print $(i+1); exit}}' || true)"
+  printf "%s" "${detected_ip}"
+}
+
+render_domain_template() {
+  local template="$1"
+  local rendered=""
+
+  rendered="${template//\$\{SERVER_PUBLIC_IP_DASHED\}/${SERVER_PUBLIC_IP_DASHED}}"
+  rendered="${rendered//\$\{SERVER_PUBLIC_IP\}/${SERVER_PUBLIC_IP}}"
+  printf "%s" "${rendered}"
+}
+
+SERVER_PUBLIC_IP="${SERVER_PUBLIC_IP:-$(detect_server_public_ip)}"
+SERVER_PUBLIC_IP_DASHED="${SERVER_PUBLIC_IP_DASHED:-${SERVER_PUBLIC_IP//./-}}"
+
+if [[ -n "${DOMAIN_TEMPLATE:-}" ]]; then
+  if [[ -z "${SERVER_PUBLIC_IP}" ]]; then
+    echo "Could not determine SERVER_PUBLIC_IP for DOMAIN_TEMPLATE in ${CARD_PATH}"
+    exit 1
+  fi
+  DOMAIN="$(render_domain_template "${DOMAIN_TEMPLATE}")"
+fi
+
+require_var "DOMAIN"
 
 ENABLE_HTTPS="${ENABLE_HTTPS:-false}"
 SCHEME="http"
