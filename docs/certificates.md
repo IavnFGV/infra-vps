@@ -24,10 +24,19 @@ VPS.
 
 ## Renew certificates
 
-This repo does not currently ship an automatic renewal timer.
-If you want renewal outside deploy runs, use cron or systemd, for example:
+This repo ships automatic renewal through the scheduled task layer.
+
+Default task files:
+
+- `scheduled-tasks/cert-renew.env`
+- `scheduled-tasks/cert-renew.sh`
+
+The task runs daily and uses `certbot renew`, which renews certificates only
+when they are close enough to expiry.
+
+Manual run:
 
 ```bash
-docker compose run --rm certbot renew --webroot --webroot-path /var/www/certbot
-./scripts/reload-nginx.sh
+cd /workspaces/infra-vps
+bash scheduled-tasks/cert-renew.sh
 ```
