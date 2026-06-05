@@ -250,10 +250,10 @@ apply_service() {
 
     if [[ "${ENABLE_HTTPS}" == "true" ]]; then
         log "Testing nginx config before certificate issue"
-        docker compose exec -T nginx nginx -t
+        docker compose exec -T nginx nginx -t </dev/null
 
         log "Reloading nginx with HTTP config for ACME challenge"
-        docker compose exec -T nginx nginx -s reload
+        docker compose exec -T nginx nginx -s reload </dev/null
 
         issue_certificate_if_needed "${DOMAIN}" "${LETSENCRYPT_EMAIL}"
 
@@ -326,9 +326,9 @@ for config_file in "${NGINX_SITES_DIR}"/*.conf; do
 done
 
 log "Final nginx config test"
-docker compose exec -T nginx nginx -t
+docker compose exec -T nginx nginx -t </dev/null
 
 log "Final nginx reload"
-docker compose exec -T nginx nginx -s reload
+docker compose exec -T nginx nginx -s reload </dev/null
 
 log "apply-services.sh completed successfully"
