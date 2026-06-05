@@ -118,6 +118,24 @@ Service-owned scheduled tasks:
 - for SQLite backups, prefer reading the DB file from `/srv/services/<service>/...`
   because it is already bind-mounted from the container onto the host
 
+Service registration from an external service repo:
+
+- the installer exposes host helpers in `PATH`:
+  - `/usr/local/bin/infra-vps-register-service`
+  - `/usr/local/bin/infra-vps-register`
+- keep the service registration card in the service repo, for example:
+  - `infra/service.env`
+- the helper copies that card into the host registry, applies ingress/TLS,
+  regenerates service runtime URLs, and can register service-owned scheduled tasks
+
+Example:
+
+```bash
+sudo infra-vps-register \
+  --card /opt/dockge/stacks/englishbot/infra/service.env \
+  --service-dir /opt/dockge/stacks/englishbot
+```
+
 Rebuild cron entries from repo tasks:
 
 ```bash

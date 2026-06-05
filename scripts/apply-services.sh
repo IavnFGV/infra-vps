@@ -11,6 +11,7 @@ cd "${ROOT_DIR}"
 LOG_FILE="${ROOT_DIR}/logs/apply-services.log"
 NGINX_SITES_DIR="${ROOT_DIR}/nginx/sites"
 SERVICES_DIR="${ROOT_DIR}/registry/services"
+HOST_SERVICES_DIR="${HOST_SERVICES_DIR:-/srv/service-registry.d}"
 DEFAULT_KEY_FILE="/opt/infra-secrets/master.key"
 KEY_FILE="${INFRA_MASTER_KEY_FILE:-${DEFAULT_KEY_FILE}}"
 
@@ -19,6 +20,28 @@ mkdir -p "${NGINX_SITES_DIR}"
 
 log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $*" | tee -a "${LOG_FILE}"
+}
+
+registry_service_files() {
+    local dir
+
+    for dir in "${SERVICES_DIR}" "${HOST_SERVICES_DIR}"; do
+        [[ -d "${dir}" ]] || continue
+
+        local service_file
+        for service_file in "${dir}"/*.env; do
+            [[ -f "${service_file}" ]] || continue
+            printf '%s\n' "${service_file}"
+        done
+    done
+}
+
+service_exists_in_registry() {
+    local service_name="$1"
+
+    [[ -f "${SERVICES_DIR}/${service_name}.env" ]] && return 0
+    [[ -f "${HOST_SERVICES_DIR}/${service_name}.env" ]] && return 0
+    return 1
 }
 
 decrypt_value() {
@@ -249,24 +272,20 @@ apply_service() {
 
 log "Starting apply-services.sh"
 
-if [[ ! -d "${SERVICES_DIR}" ]]; then
-    log "No services registry directory found: ${SERVICES_DIR}"
+if [[ ! -d "${SERVICES_DIR}" && ! -d "${HOST_SERVICES_DIR}" ]]; then
+    log "No services registry directories found: ${SERVICES_DIR} ${HOST_SERVICES_DIR}"
     exit 0
 fi
 
 found_services=false
 
-for service_file in "${SERVICES_DIR}"/*.env; do
-    if [[ ! -f "${service_file}" ]]; then
-        continue
-    fi
-
+while IFS= read -r service_file; do
     found_services=true
     apply_service "${service_file}"
-done
+done < <(registry_service_files)
 
 if [[ "${found_services}" == "false" ]]; then
-    log "No service registry files found in ${SERVICES_DIR}"
+    log "No service registry files found in ${SERVICES_DIR} or ${HOST_SERVICES_DIR}"
 fi
 
 # Remove configs for services no longer in registry.
@@ -285,8 +304,7 @@ for config_file in "${NGINX_SITES_DIR}"/*.conf; do
     fi
     
     # Check if service still exists in registry
-    registry_file="${SERVICES_DIR}/${config_name}.env"
-    if [[ ! -f "${registry_file}" ]]; then
+    if ! service_exists_in_registry "${config_name}"; then
         cert_domain="$(awk '/server_name / {print $2}' "${config_file}" | head -n1 | tr -d ';' || true)"
         log "Removing config for removed service: ${config_name}"
         rm -f "${config_file}"
