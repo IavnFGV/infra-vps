@@ -11,6 +11,7 @@ HOST_SERVICE_REGISTRY_DIR="${HOST_SERVICE_REGISTRY_DIR:-/srv/service-registry.d}
 REGISTER_TASKS_COMMAND="${REGISTER_TASKS_COMMAND:-/usr/local/bin/infra-vps-register-service-scheduled-tasks}"
 APPLY_SERVICES_SCRIPT="${APPLY_SERVICES_SCRIPT:-}"
 DECRYPT_SCRIPT="${DECRYPT_SCRIPT:-}"
+INFRA_MASTER_KEY_FILE="${INFRA_MASTER_KEY_FILE:-/opt/infra-secrets/master.key}"
 NODE_OWNER="${NODE_OWNER:-deploy}"
 SKIP_TASKS=false
 
@@ -171,7 +172,7 @@ if [[ "${STATIC_SECRET}" == enc:* ]]; then
     echo "DECRYPT_SCRIPT is not configured"
     exit 1
   fi
-  decrypted_static_secret="$("${DECRYPT_SCRIPT}" "${STATIC_SECRET}")"
+  decrypted_static_secret="$(INFRA_MASTER_KEY_FILE="${INFRA_MASTER_KEY_FILE}" "${DECRYPT_SCRIPT}" "${STATIC_SECRET}")"
 fi
 
 mkdir -p "$(dirname "${RUNTIME_ENV_FILE}")"
