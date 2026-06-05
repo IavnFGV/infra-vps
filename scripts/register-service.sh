@@ -196,15 +196,7 @@ if ! id -u "${NODE_OWNER}" >/dev/null 2>&1; then
 fi
 
 mkdir -p "${HOST_SERVICE_REGISTRY_DIR}"
-install -m 0644 "${CARD_PATH}" "${HOST_SERVICE_REGISTRY_DIR}/${SERVICE_NAME}.env"
-chown "${NODE_OWNER}:${NODE_OWNER}" "${HOST_SERVICE_REGISTRY_DIR}/${SERVICE_NAME}.env" || true
-
-if [[ -n "${APPLY_SERVICES_SCRIPT}" ]]; then
-  (
-    cd "$(dirname "${APPLY_SERVICES_SCRIPT}")/.."
-    HOST_SERVICES_DIR="${HOST_SERVICE_REGISTRY_DIR}" bash "${APPLY_SERVICES_SCRIPT}"
-  )
-fi
+HOST_REGISTRY_FILE="${HOST_SERVICE_REGISTRY_DIR}/${SERVICE_NAME}.env"
 
 decrypted_static_secret="${STATIC_SECRET}"
 if [[ "${STATIC_SECRET}" == enc:* ]]; then
@@ -213,6 +205,25 @@ if [[ "${STATIC_SECRET}" == enc:* ]]; then
     exit 1
   fi
   decrypted_static_secret="$(INFRA_MASTER_KEY_FILE="${INFRA_MASTER_KEY_FILE}" "${DECRYPT_SCRIPT}" "${STATIC_SECRET}")"
+fi
+
+cat > "${HOST_REGISTRY_FILE}" <<EOF
+SERVICE_NAME=${SERVICE_NAME}
+DOMAIN=${DOMAIN}
+UPSTREAM_HOST=${UPSTREAM_HOST}
+UPSTREAM_PORT=${UPSTREAM_PORT}
+ENABLE_HTTPS=${ENABLE_HTTPS}
+LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL:-}
+STATIC_SECRET=${STATIC_SECRET}
+EOF
+chmod 0644 "${HOST_REGISTRY_FILE}"
+chown "${NODE_OWNER}:${NODE_OWNER}" "${HOST_REGISTRY_FILE}" || true
+
+if [[ -n "${APPLY_SERVICES_SCRIPT}" ]]; then
+  (
+    cd "$(dirname "${APPLY_SERVICES_SCRIPT}")/.."
+    HOST_SERVICES_DIR="${HOST_SERVICE_REGISTRY_DIR}" bash "${APPLY_SERVICES_SCRIPT}"
+  )
 fi
 
 mkdir -p "$(dirname "${RUNTIME_ENV_FILE}")"
@@ -240,5 +251,5 @@ elif [[ "${SKIP_TASKS}" == "false" ]]; then
 fi
 
 echo "Service registration updated for ${SERVICE_NAME}"
-echo "Host registry: ${HOST_SERVICE_REGISTRY_DIR}/${SERVICE_NAME}.env"
+echo "Host registry: ${HOST_REGISTRY_FILE}"
 echo "Runtime env: ${RUNTIME_ENV_FILE}"
