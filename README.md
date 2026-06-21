@@ -1,38 +1,164 @@
-# VPS control plane
+# infra-vps
 
-This repository is the control plane for one VPS with multiple self-hosted services.
+A small collection of scripts and configuration files that I use to run multiple personal services on a single VPS.
 
-It owns:
+The goal of this project is simple:
 
-- shared `nginx` ingress
-- centralized TLS with Certbot
-- the `registry/services/*.env` service registry
-- the external Docker network `edge`
-- WireGuard bootstrap and reset scripts
+> Make a new server take minutes to set up instead of hours.
 
-It does not own application lifecycle. Application stacks should be managed by
-Dockge and attached to `edge` with stable aliases that match the registry.
+No Kubernetes.
 
-## Quick start
+No Ansible.
 
-1. Clone the repo to `/opt/infra-vps`.
-2. Run `sudo bash scripts/001-setup-server.sh` on a fresh node.
-3. Run `sudo SERVER_PUBLIC_IP=<server-ip> bash scripts/002-setup-wireguard.sh`.
-4. Restore the existing registry master key or create a new one.
-5. Run `sudo bash scripts/004-install-scheduled-tasks.sh`.
-6. Run `sudo bash scripts/005-setup-node-layout.sh`.
-7. Start the infra stack with `./scripts/006-deploy-infra.sh`.
-8. Install Dockge with `sudo bash scripts/007-install-dockge.sh`.
+No service mesh.
 
-From there:
+No magic.
 
-- Dockge manages compose stacks.
-- `registry/services/*.env` defines domains, upstream aliases, TLS, and optional
-  secret static paths.
-- `./scripts/apply-services.sh` renders and applies ingress state from the
-  registry.
+Just Docker Compose, Nginx, WireGuard and a handful of scripts that solve problems I kept running into.
 
-See [docs/overview.md](/workspaces/infra-vps/docs/overview.md) for the target
-layout and operating model.
-For the exact rebuild sequence on a new server, use
-[docs/canonical-node-bootstrap.md](/workspaces/infra-vps/docs/canonical-node-bootstrap.md).
+---
+
+# What this repository does
+
+This repository manages everything that is shared between services:
+
+* Nginx configuration
+* HTTPS certificates (Let's Encrypt)
+* service domains
+* reverse proxy configuration
+* WireGuard
+* server bootstrap
+* scheduled maintenance tasks
+
+Applications themselves live outside this repository.
+
+Each application has its own Docker Compose stack managed by Dockge.
+
+---
+
+# Typical setup
+
+```mermaid
+flowchart TD
+
+    Internet --> Nginx
+
+    Nginx --> EnglishBot
+    Nginx --> TTS
+    Nginx --> OtherServices
+
+    Registry["registry/services/*.env"]
+    Registry --> Apply["apply-services.sh"]
+
+    Apply --> Nginx
+
+    Dockge --> EnglishBot
+    Dockge --> TTS
+    Dockge --> OtherServices
+
+    VPS --> Docker
+    Docker --> Nginx
+    Docker --> Dockge
+```
+
+---
+
+# Why
+
+After running several personal projects I noticed I kept copying the same things between servers:
+
+* nginx configs
+* Let's Encrypt setup
+* WireGuard
+* Docker networks
+* deployment scripts
+* cron jobs
+
+Eventually I decided to keep all shared infrastructure in one place.
+
+Now moving to another VPS mostly looks like:
+
+```bash
+git clone ...
+run bootstrap scripts
+restore secrets
+deploy services
+```
+
+instead of manually repeating dozens of small configuration steps.
+
+---
+
+# Repository structure
+
+```text
+certbot/
+docs/
+nginx/
+registry/
+scripts/
+scheduled-tasks/
+docker-compose.yml
+```
+
+---
+
+# Service model
+
+Every application:
+
+* has its own repository
+* has its own Docker Compose stack
+* joins the shared Docker network
+* is exposed through Nginx
+
+This repository never contains application code.
+
+It only contains the infrastructure shared by every application.
+
+---
+
+# Quick start
+
+Clone the repository.
+
+```bash
+git clone <repo> /opt/infra-vps
+cd /opt/infra-vps
+```
+
+Bootstrap a fresh server.
+
+```bash
+sudo bash scripts/001-setup-server.sh
+sudo SERVER_PUBLIC_IP=<server-ip> bash scripts/002-setup-wireguard.sh
+sudo bash scripts/004-install-scheduled-tasks.sh
+sudo bash scripts/005-setup-node-layout.sh
+./scripts/006-deploy-infra.sh
+sudo bash scripts/007-install-dockge.sh
+```
+
+---
+
+# Design goals
+
+* Keep everything understandable.
+* Avoid unnecessary abstractions.
+* Be able to rebuild a server from scratch.
+* Separate infrastructure from applications.
+* Keep every service independent.
+
+---
+
+# Documentation
+
+* `docs/overview.md`
+* `docs/canonical-node-bootstrap.md`
+
+---
+
+# Current status
+
+This project is actively used to host my own services.
+
+It exists because I wanted a practical solution for my own infrastructure, not because I wanted to build another orchestration platform.
