@@ -44,6 +44,32 @@ Install Dockge:
 sudo bash scripts/007-install-dockge.sh
 ```
 
+## Infrastructure auto-deploy
+
+Pushes to `main` trigger `.github/workflows/deploy.yml`. The same workflow can
+be started manually from GitHub Actions on `main`.
+
+Repository configuration:
+
+- secrets: `VPS_HOST`, `VPS_PORT`, `VPS_USER`, `VPS_SSH_KEY`,
+  `VPS_HOST_FINGERPRINT` (the trusted SSH host key SHA256 fingerprint)
+- variable: `VPS_INFRA_DIR` (the existing clone on the VPS; defaults to
+  `/workspaces/infra-vps` on the current node)
+- install the dedicated CI public key in the deploy user's `authorized_keys`
+  with the `restrict` option; never commit the private key
+
+The workflow verifies the SSH host key and fast-forwards the server clone to
+the exact triggering commit. It never resets or discards server-local changes;
+conflicting edits stop the deployment and must be reconciled explicitly.
+Keep runtime service registrations in `/srv/service-registry.d`, outside Git.
+The existing registry master key must be readable by the deploy user; CI will
+not generate a replacement key.
+
+Deployment pulls the nginx and Certbot images, validates the nginx configuration
+in the new image before recreation, then applies the service registry and reloads
+nginx. It does not update Ubuntu packages, reboot the VPS, or rebuild application
+stacks. Those applications have their own deployment workflows.
+
 ## Normal service lifecycle
 
 1. Start or update the stack in Dockge.

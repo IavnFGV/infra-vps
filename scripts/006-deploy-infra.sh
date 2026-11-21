@@ -60,7 +60,10 @@ persist_certbot_runtime_ids
 
 echo "Using certbot runtime UID:GID ${CERTBOT_UID}:${CERTBOT_GID}"
 ./scripts/init-edge-network.sh "${EDGE_NETWORK:-edge}"
-docker compose up -d
+docker compose config --quiet
+docker compose pull nginx certbot
+docker compose run --rm --no-deps nginx nginx -t
+docker compose up -d nginx
 ./scripts/check-nginx.sh
 
 echo "Infra stack is up."

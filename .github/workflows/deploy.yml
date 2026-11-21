@@ -4,28 +4,50 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-infra-production
+  cancel-in-progress: false
 
 jobs:
   deploy:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DEPLOY_SHA: ${{ github.sha }}
+      INFRA_DIR: ${{ vars.VPS_INFRA_DIR || '/workspaces/infra-vps' }}
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
       - name: Deploy to VPS
-        uses: appleboy/ssh-action@v1.0.3
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
+          port: ${{ secrets.VPS_PORT || '22' }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          fingerprint: ${{ secrets.VPS_HOST_FINGERPRINT }}
+          envs: DEPLOY_SHA,INFRA_DIR
+          command_timeout: 12m
           script: |
-            cd /opt/infra-vps
-            git fetch --all --prune
-            git reset --hard origin/main
-            chmod +x scripts/*.sh
-            ./scripts/init-edge-network.sh
+            bash -se <<'DEPLOY'
+            set -euo pipefail
+            cd "${INFRA_DIR}"
+            test "$(git branch --show-current)" = main
+            if [[ ! -r "${INFRA_MASTER_KEY_FILE:-/opt/infra-secrets/master.key}" ]]; then
+              echo "Registry master key is missing or unreadable; restore it before deploying."
+              exit 1
+            fi
+            git fetch --no-tags origin "${DEPLOY_SHA}"
+            # Fast-forward only: never discard server-local changes or roll back newer code.
+            git merge --ff-only "${DEPLOY_SHA}"
+            test "$(git rev-parse HEAD)" = "${DEPLOY_SHA}"
             ./scripts/006-deploy-infra.sh
-            ./scripts/003-create-master-key.sh
             ./scripts/apply-services.sh
             docker compose ps
+            echo "Deployed commit $(git rev-parse HEAD)"
+            DEPLOY
