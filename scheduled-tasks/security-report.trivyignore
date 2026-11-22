@@ -1,0 +1,7 @@
+# Vulnerabilities the daily security report deliberately ignores.
+# One ID per line; keep a reason and a date so entries can be revisited.
+
+# 2026-11-22: setuptools 70.3.0 listed in pip's own SBOM (pip/_vendor/bom.cdx.json)
+# for its vendored pkg_resources. The bug is in setuptools.package_index, which
+# pip does not vendor. Real setuptools is pinned >=78.1.1 in the service images.
+CVE-2025-47273

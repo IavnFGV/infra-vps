@@ -85,6 +85,11 @@ Files:
 - **nginx / other pinned images**: check for a Dependabot PR in this repo.
 - **a stack deployed only through Dockge** (no CI): `docker compose pull && docker compose up -d` in that stack.
 
+## Ignoring a finding
+
+Add the ID with a reason and date to `scheduled-tasks/security-report.trivyignore`.
+Use it only for findings that do not apply, never to silence a real fix.
+
 ## GitHub repository settings (once per repo)
 
 - Settings -> Code security: enable **Dependabot alerts** and **Dependabot security updates**.

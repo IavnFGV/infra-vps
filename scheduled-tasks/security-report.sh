@@ -24,6 +24,7 @@ NOTIFY_BIN="${NOTIFY_BIN:-${REPO_ROOT}/scripts/notify-telegram.sh}"
 SUMMARIZE="${SUMMARIZE:-${REPO_ROOT}/scripts/security-report-summarize.py}"
 UU_LOG="${UU_LOG:-/var/log/unattended-upgrades/unattended-upgrades.log}"
 REBOOT_REQUIRED_FILE="${REBOOT_REQUIRED_FILE:-/var/run/reboot-required}"
+IGNORE_FILE="${IGNORE_FILE:-${SCRIPT_DIR}/security-report.trivyignore}"
 
 log() {
   printf '%s [security-report] %s\n' "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" "$*"
@@ -37,6 +38,9 @@ trap 'rm -rf "${scan_dir}"' EXIT
 summarize_args=()
 trivy_common=(--cache-dir "${TRIVY_CACHE_DIR}" --quiet --scanners vuln
   --ignore-unfixed --severity "${SEVERITY}" --format json)
+if [[ -f "${IGNORE_FILE}" ]]; then
+  trivy_common+=(--ignorefile "${IGNORE_FILE}")
+fi
 
 if ! command -v trivy >/dev/null 2>&1; then
   summarize_args+=(--scan-error "trivy=not installed (run scripts/008-setup-auto-updates.sh)")
