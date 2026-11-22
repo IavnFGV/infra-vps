@@ -106,6 +106,13 @@ def fmt(item) -> str:
             f"{item['pkg']} {item['installed']} -> {item['fixed']}")
 
 
+def fmt_resolved(key: str, item) -> str:
+    if not item:
+        return f"{key.split('|')[2]:<20} {key.split('|')[0]}: {key.split('|')[1]}"
+    return (f"{item['id']:<20} {item['label']}: {item['pkg']} "
+            f"was {item['installed']}, fixed in {item['fixed']}")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--scan", action="append", type=split_pair, default=[])
@@ -127,14 +134,17 @@ def main() -> int:
     scan_errors = list(args.scan_error)
     findings = load_findings(args.scan, scan_errors, args.running_kernel)
 
-    previous = set()
+    # state: {key: finding} from the previous run, so a resolved finding can be
+    # shown with the version it had and the version that fixes it.
+    previous: dict = {}
     if args.state.is_file():
         try:
-            previous = set(json.loads(args.state.read_text()))
+            loaded = json.loads(args.state.read_text())
+            previous = loaded if isinstance(loaded, dict) else {k: None for k in loaded}
         except (OSError, json.JSONDecodeError):
-            previous = set()
-    new_keys = sorted(set(findings) - previous, key=lambda k: sort_key(findings[k]))
-    fixed_keys = sorted(previous - set(findings))
+            previous = {}
+    new_keys = sorted(set(findings) - set(previous), key=lambda k: sort_key(findings[k]))
+    fixed_keys = sorted(set(previous) - set(findings))
 
     upgraded, uu_errors = read_uu_log(args.uu_log, now - dt.timedelta(hours=args.since_hours))
     reboot_pkgs = []
@@ -171,7 +181,7 @@ def main() -> int:
     if fixed_keys:
         lines.append("")
         lines.append(f"== Resolved since last scan: {len(fixed_keys)} ==")
-        lines.extend(f"- {k}" for k in fixed_keys)
+        lines.extend(fmt_resolved(k, previous[k]) for k in fixed_keys)
     if scan_errors:
         lines.append("")
         lines.append("== Scan errors ==")
@@ -187,6 +197,9 @@ def main() -> int:
             msg.append(f"... and {len(new_keys) - MAX_LISTED} more")
     if fixed_keys:
         msg.append(f"✅ Resolved since last scan: {len(fixed_keys)}")
+        msg.extend(fmt_resolved(k, previous[k]) for k in fixed_keys[:MAX_LISTED])
+        if len(fixed_keys) > MAX_LISTED:
+            msg.append(f"... and {len(fixed_keys) - MAX_LISTED} more")
     if upgraded:
         msg.append(f"📦 OS packages updated: {' '.join(upgraded[:30])}"
                    + (" ..." if len(upgraded) > 30 else ""))
@@ -207,7 +220,7 @@ def main() -> int:
             msg.append(f"- {label}: {sum(by_label[label].values())}")
 
     args.message.write_text(("Security report\n" + "\n".join(msg) + "\n") if msg else "")
-    args.state.write_text(json.dumps(sorted(findings), indent=0))
+    args.state.write_text(json.dumps(findings, indent=1, sort_keys=True))
     return 0
 
 

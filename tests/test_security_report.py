@@ -153,6 +153,9 @@ class SecurityReportTests(unittest.TestCase):
         (self.root / "vuln.json").write_text(json.dumps({"Results": []}))
         _, sent = self.run_report()
         self.assertIn("Resolved since last scan: 4", sent)
+        self.assertIn("tts-service/tts: libssl3 was 3.0.1, fixed in 3.0.2", sent)
+        report = (self.root / "reports" / "latest.txt").read_text()
+        self.assertIn("libssl3 was 3.0.1, fixed in 3.0.2", report)
 
 
 class SecurityReportEdgeCaseTests(SecurityReportTests):
