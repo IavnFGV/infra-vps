@@ -15,6 +15,8 @@ class DeployInfraTests(unittest.TestCase):
             root = Path(directory)
             (root / "scripts").mkdir()
             (root / "bin").mkdir()
+            stack_dir = root / "hello-test"
+            stack_dir.mkdir()
             for name in (
                 "006-deploy-infra.sh",
                 "init-edge-network.sh",
@@ -24,7 +26,14 @@ class DeployInfraTests(unittest.TestCase):
             docker = root / "bin" / "docker"
             docker.write_text(
                 '#!/usr/bin/env bash\n'
-                'printf "%s\\n" "$*" >> "$DOCKER_CALLS"\n'
+                'printf "%s @%s\\n" "$*" "$PWD" >> "$DOCKER_CALLS"\n'
+                'if [[ "$1" == ps ]]; then printf "c1\\nc2\\nc3\\n"; exit 0; fi\n'
+                'if [[ "$1" == inspect ]]; then\n'
+                '  printf "infra-vps-nginx:local\\tinfra-vps\\t/infra\\n"\n'
+                '  printf "infra-vps-nginx:local\\thello-test\\t%s\\n" "$STACK_DIR"\n'
+                '  printf "englishbot-app\\tenglishbot\\t/elsewhere\\n"\n'
+                '  exit 0\n'
+                'fi\n'
                 'if [[ "$*" == "compose run "* ]]; then\n'
                 '  cat >/dev/null\n'
                 '  exit "$NGINX_TEST_STATUS"\n'
@@ -35,6 +44,7 @@ class DeployInfraTests(unittest.TestCase):
                 **os.environ,
                 "PATH": f"{root / 'bin'}:{os.environ['PATH']}",
                 "DOCKER_CALLS": str(root / "docker-calls"),
+                "STACK_DIR": str(stack_dir),
                 "NGINX_TEST_STATUS": str(nginx_test_status),
                 "CERTBOT_UID": "1000",
                 "CERTBOT_GID": "1000",
@@ -58,6 +68,14 @@ class DeployInfraTests(unittest.TestCase):
         self.assertLess(calls.index("compose build"), calls.index("compose run"))
         self.assertIn("--interactive=false", calls)
         self.assertLess(calls.index("compose run"), calls.index("compose up"))
+
+    def test_recreates_other_stacks_using_the_nginx_image(self):
+        result, calls = self.run_deploy()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        recreated = [line for line in calls.splitlines() if line.startswith("compose up -d --wait")]
+        self.assertEqual(len(recreated), 1, calls)
+        self.assertTrue(recreated[0].endswith("/hello-test"), recreated)
+        self.assertLess(calls.index("compose up -d nginx"), calls.index("compose up -d --wait"))
 
     def test_invalid_nginx_config_prevents_recreation(self):
         result, calls = self.run_deploy(nginx_test_status=1)

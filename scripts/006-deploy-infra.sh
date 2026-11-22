@@ -67,4 +67,16 @@ docker compose run --rm --no-deps --interactive=false nginx nginx -t </dev/null
 docker compose up -d nginx
 ./scripts/check-nginx.sh
 
+# Other stacks (e.g. Dockge ones) may use the same locally built nginx image;
+# recreate them so they run the fresh build too.
+NGINX_IMAGE="infra-vps-nginx:local"
+docker ps -q \
+  | xargs -r docker inspect --format '{{.Config.Image}}	{{index .Config.Labels "com.docker.compose.project"}}	{{index .Config.Labels "com.docker.compose.project.working_dir"}}' \
+  | awk -F'\t' -v img="${NGINX_IMAGE}" '$1 == img && $2 != "infra-vps" && $3 != "" {print $3}' \
+  | sort -u \
+  | while IFS= read -r stack_dir; do
+      echo "Recreating ${stack_dir} on the fresh ${NGINX_IMAGE}"
+      (cd "${stack_dir}" && docker compose up -d --wait </dev/null)
+    done
+
 echo "Infra stack is up."

@@ -83,7 +83,10 @@ Files:
   service's deploy workflow manually (`Actions -> Run workflow`).
 - **a service image**, Python package: check for an open Dependabot PR
   (it stays open only if tests failed), or bump it yourself.
-- **nginx / other pinned images**: check for a Dependabot PR in this repo.
+- **nginx**: rebuilt with Alpine fixes on every infra deploy and weekly; to force it now run the infra deploy workflow manually.
+- **Other stacks serving static files**: use `image: infra-vps-nginx:local` with
+  `pull_policy: never` (the image exists only in the local Docker store). The infra
+  deploy recreates every running stack that uses it, so they get each rebuild too.
 - **a stack deployed only through Dockge** (no CI): `docker compose pull && docker compose up -d` in that stack.
 
 ## Ignoring a finding
