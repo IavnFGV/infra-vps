@@ -13,12 +13,13 @@ pockets, Dependabot patch/minor bumps that pass tests, and a weekly rebuild.
 | Host OS packages (kernel, openssl, ssh, ...) | `unattended-upgrades` (security pockets only) | daily 03:30, reboot at 04:30 if required |
 | Docker Engine / containerd / compose plugin | `unattended-upgrades` (`download.docker.com`) | same |
 | Libraries used by running daemons | `needrestart` restarts the affected services | right after the upgrade |
-| Python dependencies of a service | Dependabot PR -> tests + `pip-audit` -> auto-merge (patch/minor) -> deploy | security PRs as soon as an advisory is published; routine bumps weekly |
+| Python dependencies of a service | Dependabot PR -> tests + `pip-audit` -> auto-merge -> deploy | security PRs as soon as an advisory is published; routine bumps weekly |
 | Base image of a service (`python:3.x-slim`, Debian packages inside) | weekly scheduled run of the service deploy workflow (`docker compose build --pull`) | Monday 02:17 UTC |
-| Images pinned in this repo (`nginx`) | Dependabot (`docker-compose` ecosystem) -> auto-merge for patch -> infra deploy | daily check |
+| Images pinned in this repo (`nginx`) | Dependabot (`docker-compose` ecosystem) -> auto-merge -> infra deploy (`nginx -t` gates the restart) | daily check |
 | Anything the above missed | `scheduled-tasks/security-report.sh` (Trivy) reports it | daily 05:15 |
 
-Major version bumps are never merged automatically: they stay as open PRs.
+Every Dependabot PR is merged once tests pass, major versions included.
+A PR whose tests fail stays open — that is the only thing to look at by hand.
 
 ## Server setup
 
@@ -81,7 +82,7 @@ Files:
 - **a service image**, base OS package: wait for Monday rebuild, or run the
   service's deploy workflow manually (`Actions -> Run workflow`).
 - **a service image**, Python package: check for an open Dependabot PR
-  (major bumps wait for you), or bump it yourself.
+  (it stays open only if tests failed), or bump it yourself.
 - **nginx / other pinned images**: check for a Dependabot PR in this repo.
 - **a stack deployed only through Dockge** (no CI): `docker compose pull && docker compose up -d` in that stack.
 

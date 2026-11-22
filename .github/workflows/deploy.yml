@@ -26,8 +26,8 @@ jobs:
       - name: Validate compose file
         run: docker compose config --quiet
 
-  # Dependabot PRs: merge patch-level updates (e.g. nginx 1.30.7 -> 1.30.8)
-  # after tests pass. Minor/major updates stay open for manual review.
+  # Dependabot PRs of any kind (security, patch, minor, major) are merged once
+  # tests pass, then deployed. A broken update fails tests and stays open.
   dependabot-automerge:
     needs: test
     if: github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]'
@@ -37,12 +37,7 @@ jobs:
       pull-requests: write
       actions: write
     steps:
-      - name: Read Dependabot metadata
-        id: meta
-        uses: dependabot/fetch-metadata@v2
-
       - name: Merge and deploy
-        if: steps.meta.outputs.update-type == 'version-update:semver-patch'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_URL: ${{ github.event.pull_request.html_url }}
