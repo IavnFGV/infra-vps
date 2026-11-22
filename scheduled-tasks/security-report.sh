@@ -29,7 +29,7 @@ log() {
   printf '%s [security-report] %s\n' "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" "$*"
 }
 
-install -d -m 0750 "${REPORT_DIR}" "${REPORT_DIR}/scans"
+install -d -m 0755 "${REPORT_DIR}" "${REPORT_DIR}/scans"
 install -d -m 0755 "${TRIVY_CACHE_DIR}"
 scan_dir="$(mktemp -d)"
 trap 'rm -rf "${scan_dir}"' EXIT
@@ -58,35 +58,58 @@ else
     fi
   fi
 
-  # One scan per unique image; label = compose project/service of containers using it.
-  declare -A image_labels=()
-  while IFS=$'\t' read -r image project service name; do
-    [[ -n "${image}" ]] || continue
+  # One scan per unique image ID actually running (not per tag: a tag may
+  # already point to a newer build than the container uses).
+  # label = compose project/service of the containers using it.
+  declare -A image_labels=() image_refs=()
+  inspect_format='{{.Image}}	{{.Config.Image}}	{{index .Config.Labels "com.docker.compose.project"}}	{{index .Config.Labels "com.docker.compose.service"}}	{{.Name}}'
+  while IFS=$'\t' read -r image_id ref project service name; do
+    [[ -n "${image_id}" ]] || continue
     if [[ -n "${project}" && -n "${service}" ]]; then
       label="${project}/${service}"
     else
-      label="${name}"
+      label="${name#/}"
     fi
-    if [[ -n "${image_labels[${image}]:-}" ]]; then
-      image_labels["${image}"]+=",${label}"
+    if [[ -n "${image_labels[${image_id}]:-}" ]]; then
+      image_labels["${image_id}"]+=",${label}"
     else
-      image_labels["${image}"]="${label}"
+      image_labels["${image_id}"]="${label}"
+      image_refs["${image_id}"]="${ref}"
     fi
-  done < <(docker ps --format '{{.Image}}	{{.Label "com.docker.compose.project"}}	{{.Label "com.docker.compose.service"}}	{{.Names}}' | sort)
+  done < <(docker ps -q | xargs -r docker inspect --format "${inspect_format}" | sort)
 
   i=0
-  for image in "${!image_labels[@]}"; do
+  for image_id in "${!image_labels[@]}"; do
     i=$((i + 1))
-    label="${image_labels[${image}]}"
+    label="${image_labels[${image_id}]}"
+    ref="${image_refs[${image_id}]}"
     out="${scan_dir}/image-${i}.json"
-    log "Scanning ${label} (${image})"
-    if trivy image "${trivy_common[@]}" --skip-db-update --output "${out}" "${image}"; then
+    target=(--skip-db-update --output "${out}")
+
+    if [[ "$(docker image inspect --format '{{.Id}}' "${ref}" 2>/dev/null || true)" == "${image_id}" ]]; then
+      target+=("${ref}")
+    else
+      summarize_args+=(--scan-error "${label}=container runs an outdated image (${ref} now points to a newer build); recreate the stack")
+      tar="${scan_dir}/image-${i}.tar"
+      if ! docker save -o "${tar}" "${image_id}" 2>/dev/null; then
+        summarize_args+=(--scan-error "${label}=running image ${image_id:7:12} is not in the local store; cannot scan")
+        continue
+      fi
+      target+=(--input "${tar}")
+    fi
+
+    log "Scanning ${label} (${ref}, ${image_id:7:12})"
+    if trivy image "${trivy_common[@]}" "${target[@]}"; then
       summarize_args+=(--scan "${label}=${out}")
     else
-      summarize_args+=(--scan-error "${label}=trivy image failed for ${image}")
+      summarize_args+=(--scan-error "${label}=trivy image failed for ${ref}")
     fi
+    rm -f "${scan_dir}/image-${i}.tar"
   done
 fi
+
+# Old kernels left on disk are not running; don't report them.
+summarize_args+=(--running-kernel "$(uname -r)")
 
 if [[ -n "${HEARTBEAT_WEEKDAY}" && "$(date +%u)" == "${HEARTBEAT_WEEKDAY}" ]]; then
   summarize_args+=(--heartbeat)

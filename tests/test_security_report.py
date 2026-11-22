@@ -45,8 +45,25 @@ exit 0
 """
 
 FAKE_DOCKER = """#!/usr/bin/env bash
-printf 'tts-service-tts\\ttts-service\\ttts\\ttts-1\\n'
-printf 'nginx:1.30.7-alpine\\tinfra-vps\\tnginx\\tinfra-vps-nginx-1\\n'
+# containers: id -> "imageId<TAB>ref<TAB>project<TAB>service<TAB>/name"
+case "$1" in
+  ps) printf 'c1\\nc2\\n' ;;
+  inspect)
+    shift 3
+    for c in "$@"; do
+      case "$c" in
+        c1) printf 'sha256:aaaaaaaaaaaaaaaa\\ttts-service-tts\\ttts-service\\ttts\\t/tts-1\\n' ;;
+        c2) printf 'sha256:bbbbbbbbbbbbbbbb\\tnginx:1.30.7-alpine\\tinfra-vps\\tnginx\\t/infra-vps-nginx-1\\n' ;;
+      esac
+    done ;;
+  image)
+    case "${@: -1}" in
+      tts-service-tts) echo "${TTS_TAG_ID:-sha256:aaaaaaaaaaaaaaaa}" ;;
+      nginx:1.30.7-alpine) echo sha256:bbbbbbbbbbbbbbbb ;;
+      *) exit 1 ;;
+    esac ;;
+  save) printf '%s\\n' "$*" >> "$DOCKER_SAVES"; touch "$3" ;;
+esac
 """
 
 
@@ -81,6 +98,7 @@ class SecurityReportTests(unittest.TestCase):
             "UU_LOG": str(uu_log),
             "REBOOT_REQUIRED_FILE": str(self.root / "no-reboot"),
             "HEARTBEAT_WEEKDAY": "",
+            "DOCKER_SAVES": str(self.root / "docker-saves"),
         }
 
     def tearDown(self):
@@ -130,6 +148,26 @@ class SecurityReportTests(unittest.TestCase):
         (self.root / "vuln.json").write_text(json.dumps({"Results": []}))
         _, sent = self.run_report()
         self.assertIn("Resolved since last scan: 3", sent)
+
+
+class SecurityReportEdgeCaseTests(SecurityReportTests):
+    def test_outdated_running_image_is_flagged_and_scanned_from_store(self):
+        self.env["TTS_TAG_ID"] = "sha256:cccccccccccccccc"  # tag moved to a newer build
+        _, sent = self.run_report()
+        self.assertIn("tts-service/tts: container runs an outdated image", sent)
+        self.assertIn("sha256:aaaaaaaaaaaaaaaa", (self.root / "docker-saves").read_text())
+        self.assertIn("--input", (self.root / "trivy-calls").read_text())
+        self.assertIn("tts-service/tts: libssl3", sent)
+
+    def test_packages_of_non_running_kernels_are_ignored(self):
+        fixture = {"Results": [{"Vulnerabilities": [
+            {"VulnerabilityID": "CVE-1", "PkgName": "linux-modules-0.0.0-1-generic",
+             "InstalledVersion": "0.0.0-1.1", "FixedVersion": "0.0.0-2.2", "Severity": "HIGH"},
+        ]}]}
+        (self.root / "vuln.json").write_text(json.dumps(fixture))
+        _, sent = self.run_report()
+        self.assertNotIn("host: linux-modules", sent)
+        self.assertIn("infra-vps/nginx: linux-modules", sent)  # images are not filtered
 
 
 class NotifyTelegramTests(unittest.TestCase):

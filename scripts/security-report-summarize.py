@@ -38,7 +38,20 @@ def split_pair(value: str) -> tuple[str, str]:
     return label, rest
 
 
-def load_findings(scans: list[tuple[str, str]], errors: list[tuple[str, str]]):
+KERNEL_PKG = re.compile(r"^linux-[a-z0-9-]*?-(\d+\.\d+\.\d+-\d+)(?:-[a-z0-9]+)?$")
+
+
+def is_idle_kernel(pkg: str, running_kernel: str | None) -> bool:
+    """linux-modules-7.0.0-15-generic while 7.0.0-44-generic is running."""
+    if not running_kernel:
+        return False
+    match = KERNEL_PKG.match(pkg)
+    return bool(match) and not running_kernel.startswith(match.group(1) + "-") \
+        and running_kernel != match.group(1)
+
+
+def load_findings(scans: list[tuple[str, str]], errors: list[tuple[str, str]],
+                  running_kernel: str | None = None):
     findings = {}
     for label, path in scans:
         try:
@@ -49,6 +62,8 @@ def load_findings(scans: list[tuple[str, str]], errors: list[tuple[str, str]]):
         for result in data.get("Results") or []:
             for vuln in result.get("Vulnerabilities") or []:
                 if not vuln.get("FixedVersion"):
+                    continue
+                if label == "host" and is_idle_kernel(vuln.get("PkgName", ""), running_kernel):
                     continue
                 key = f"{label}|{vuln.get('PkgName')}|{vuln.get('VulnerabilityID')}"
                 findings[key] = {
@@ -104,12 +119,13 @@ def main() -> int:
     parser.add_argument("--reboot-required-file", type=Path,
                         default=Path("/var/run/reboot-required"))
     parser.add_argument("--heartbeat", action="store_true")
+    parser.add_argument("--running-kernel", help="uname -r; host packages of other kernels are ignored")
     parser.add_argument("--now", help="override current time (tests), ISO format")
     args = parser.parse_args()
 
     now = dt.datetime.fromisoformat(args.now) if args.now else dt.datetime.now()
     scan_errors = list(args.scan_error)
-    findings = load_findings(args.scan, scan_errors)
+    findings = load_findings(args.scan, scan_errors, args.running_kernel)
 
     previous = set()
     if args.state.is_file():
