@@ -85,6 +85,12 @@ jobs:
               exit 1
             fi
             git fetch --no-tags origin "${DEPLOY_SHA}"
+            # Several merges in a row dispatch several deploys; if a newer commit is
+            # already deployed, this older one has nothing to do.
+            if [ "$(git rev-parse HEAD)" != "${DEPLOY_SHA}" ] && git merge-base --is-ancestor "${DEPLOY_SHA}" HEAD; then
+              echo "[deploy] ${DEPLOY_SHA} is older than deployed $(git rev-parse --short HEAD); skipping"
+              exit 0
+            fi
             # Fast-forward only: never discard server-local changes or roll back newer code.
             git merge --ff-only "${DEPLOY_SHA}"
             test "$(git rev-parse HEAD)" = "${DEPLOY_SHA}"
