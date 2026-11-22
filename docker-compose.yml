@@ -1,6 +1,8 @@
 services:
   nginx:
-    image: nginx:1.31.8-alpine
+    build:
+      context: ./nginx/image
+    image: infra-vps-nginx:local
     restart: unless-stopped
     ports:
       - "80:80"

@@ -15,7 +15,7 @@ pockets, Dependabot patch/minor bumps that pass tests, and a weekly rebuild.
 | Libraries used by running daemons | `needrestart` restarts the affected services | right after the upgrade |
 | Python dependencies of a service | Dependabot PR -> tests + `pip-audit` -> auto-merge -> deploy | security PRs as soon as an advisory is published; routine bumps weekly |
 | Base image of a service (`python:3.x-slim`, Debian packages inside) | weekly scheduled run of the service deploy workflow (`docker compose build --pull`) | Monday 02:17 UTC |
-| Images pinned in this repo (`nginx`) | Dependabot (`docker-compose` ecosystem) -> auto-merge -> infra deploy (`nginx -t` gates the restart) | daily check |
+| nginx (`nginx/image/Dockerfile`: official image + `apk upgrade`) | rebuilt on every infra deploy and weekly; Dependabot bumps the base tag -> auto-merge -> deploy (`nginx -t` gates the restart) | weekly Monday 02:47 UTC + daily tag check |
 | Anything the above missed | `scheduled-tasks/security-report.sh` (Trivy) reports it | daily 05:15 |
 
 Every Dependabot PR is merged once tests pass, major versions included.

@@ -8,6 +8,9 @@ on:
     branches:
       - main
   workflow_dispatch:
+  # Weekly rebuild of the nginx image to pick up Alpine security fixes.
+  schedule:
+    - cron: "47 2 * * 1"
 
 permissions:
   contents: read

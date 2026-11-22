@@ -1,8 +1,8 @@
 version: 2
 updates:
-  # nginx and other images pinned in docker-compose.yml
-  - package-ecosystem: docker-compose
-    directory: /
+  # nginx base image (nginx/image/Dockerfile)
+  - package-ecosystem: docker
+    directory: /nginx/image
     schedule:
       interval: daily
   - package-ecosystem: github-actions
