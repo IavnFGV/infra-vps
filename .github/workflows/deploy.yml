@@ -4,20 +4,62 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
   contents: read
 
-concurrency:
-  group: deploy-infra-production
-  cancel-in-progress: false
-
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Run tests
+        run: python3 -m unittest discover -s tests -v
+
+      - name: Validate compose file
+        run: docker compose config --quiet
+
+  # Dependabot PRs: merge patch-level updates (e.g. nginx 1.30.7 -> 1.30.8)
+  # after tests pass. Minor/major updates stay open for manual review.
+  dependabot-automerge:
+    needs: test
+    if: github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    steps:
+      - name: Read Dependabot metadata
+        id: meta
+        uses: dependabot/fetch-metadata@v2
+
+      - name: Merge and deploy
+        if: steps.meta.outputs.update-type == 'version-update:semver-patch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          gh pr merge --squash --delete-branch "$PR_URL"
+          # A merge made with GITHUB_TOKEN does not trigger push workflows,
+          # so start the deploy explicitly.
+          gh workflow run "${{ github.workflow }}" --ref main --repo "$GITHUB_REPOSITORY"
+
   deploy:
-    if: github.ref == 'refs/heads/main'
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    concurrency:
+      group: deploy-infra-production
+      cancel-in-progress: false
     env:
       DEPLOY_SHA: ${{ github.sha }}
       INFRA_DIR: ${{ vars.VPS_INFRA_DIR || '/workspaces/infra-vps' }}
