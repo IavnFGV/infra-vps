@@ -37,8 +37,6 @@ UU_CONF="/etc/apt/apt.conf.d/52infra-vps-unattended-upgrades"
 AUTO_CONF="/etc/apt/apt.conf.d/20auto-upgrades"
 NEEDRESTART_CONF="/etc/needrestart/conf.d/50-infra-vps.conf"
 NOTIFY_TARGET="/usr/local/bin/infra-vps-notify"
-NOTIFY_CONFIG_DIR="/etc/infra-vps"
-NOTIFY_CONFIG_FILE="${NOTIFY_CONFIG_DIR}/notify.env"
 
 log() {
   printf '%s [setup-auto-updates] %s\n' "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" "$*"
@@ -143,21 +141,11 @@ chmod 0644 "${NEEDRESTART_CONF}"
 log "[6/7] Installing Telegram notify helper"
 chmod 0755 "${REPO_ROOT}/scripts/notify-telegram.sh"
 ln -sfn "${REPO_ROOT}/scripts/notify-telegram.sh" "${NOTIFY_TARGET}"
-install -d -m 0700 "${NOTIFY_CONFIG_DIR}"
-if [[ ! -f "${NOTIFY_CONFIG_FILE}" ]]; then
-  cat > "${NOTIFY_CONFIG_FILE}" <<'EOF'
-# Telegram notifications for infra-vps scheduled tasks.
-# Values may be plain or enc:... (see scripts/encrypt-value.sh).
-# Get chat id: send a message to the bot, then open
-#   https://api.telegram.org/bot<TOKEN>/getUpdates
-TELEGRAM_BOT_TOKEN=
-TELEGRAM_CHAT_ID=
-EOF
-  log "Created ${NOTIFY_CONFIG_FILE} — fill in the bot token and chat id"
+if [[ -f "${REPO_ROOT}/config/notify.env" ]]; then
+  log "Telegram config found in repo: config/notify.env (enc: values need the master key)"
 else
-  log "Keeping existing ${NOTIFY_CONFIG_FILE}"
+  log "No config/notify.env in repo yet — see config/notify.env.example; notifications go to the log only"
 fi
-chmod 0600 "${NOTIFY_CONFIG_FILE}"
 
 log "[7/7] Dry run of unattended-upgrades"
 unattended-upgrade --dry-run -v 2>&1 | grep -E "Allowed origins|Packages that will be upgraded|No packages found" || true
@@ -171,10 +159,8 @@ Configured:
   ${NEEDRESTART_CONF}
   /etc/systemd/system/apt-daily{,-upgrade}.timer.d/infra-vps.conf
   ${NOTIFY_TARGET} -> ${REPO_ROOT}/scripts/notify-telegram.sh
-  ${NOTIFY_CONFIG_FILE}
 
 Next:
-  sudo nano ${NOTIFY_CONFIG_FILE}
   infra-vps-notify "test from \$(hostname)"
   sudo bash ${REPO_ROOT}/scheduled-tasks/security-report.sh   # first scan by hand
 

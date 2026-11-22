@@ -24,13 +24,30 @@ Major version bumps are never merged automatically: they stay as open PRs.
 
 ```bash
 sudo bash scripts/008-setup-auto-updates.sh
-sudo nano /etc/infra-vps/notify.env          # TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 infra-vps-notify "test"                      # should arrive in Telegram
 sudo bash scheduled-tasks/security-report.sh # first scan by hand
 ```
 
-`notify.env` values can be plain or `enc:...` (`scripts/encrypt-value.sh`).
-Without Telegram config the report still goes to the log.
+Telegram config lives in the repo as `config/notify.env` with encrypted
+values, so moving to a new server needs nothing beyond the usual bootstrap
+(master key restore in step 003 + step 008). Create it once:
+
+```bash
+cp config/notify.env.example config/notify.env
+./scripts/encrypt-value.sh "<bot token>"   # -> TELEGRAM_BOT_TOKEN=enc:...
+./scripts/encrypt-value.sh "<chat id>"     # -> TELEGRAM_CHAT_ID=enc:...
+git add config/notify.env && git commit
+```
+
+`/etc/infra-vps/notify.env` (optional, chmod 600) overrides it on one server.
+Without any Telegram config the report still goes to the log.
+
+## Moving to another server
+
+Everything is in this repo and re-created by `008-setup-auto-updates.sh`
+(it is part of the bootstrap sequence). Only these are server-local and are
+simply rebuilt: report history in `/var/log/infra-vps-security/` (the first
+scan on the new server reports everything as new once) and the Trivy cache.
 
 The `security-report` task is picked up by the existing scheduled task sync
 (`scheduled-tasks/security-report.env`), no extra cron setup needed.

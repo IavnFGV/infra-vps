@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 from pathlib import Path
 import subprocess
 import tempfile
@@ -175,6 +176,48 @@ class NotifyTelegramTests(unittest.TestCase):
             self.assertIn("chat_id=42", args)
             self.assertIn("alert", args)
             self.assertIn("botSECRET123/sendMessage", (root / "cfg").read_text())
+
+    def test_encrypted_config_from_repo_copy(self):
+        """New server: repo clone + restored master key is enough."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repo = root / "repo"
+            (repo / "scripts").mkdir(parents=True)
+            (repo / "config").mkdir()
+            for name in ("notify-telegram.sh", "decrypt-value.sh", "encrypt-value.sh"):
+                shutil.copy2(ROOT / "scripts" / name, repo / "scripts" / name)
+            key = root / "master.key"
+            key.write_text("test-master-key\n")
+            env = {**os.environ, "INFRA_MASTER_KEY_FILE": str(key)}
+            encrypt = lambda v: subprocess.check_output(
+                [str(repo / "scripts" / "encrypt-value.sh"), v], text=True, env=env
+            ).strip()
+            (repo / "config" / "notify.env").write_text(
+                f"TELEGRAM_BOT_TOKEN={encrypt('TOKEN777')}\n"
+                f"TELEGRAM_CHAT_ID={encrypt('99')}\n"
+            )
+            (root / "bin").mkdir()
+            curl = root / "bin" / "curl"
+            curl.write_text(
+                '#!/usr/bin/env bash\n'
+                'printf "%s\\n" "$*" > "$CURL_ARGS"\n'
+                'while [[ $# -gt 0 ]]; do [[ "$1" == --config ]] && cat "$2" > "$CURL_CFG"; shift; done\n'
+            )
+            curl.chmod(0o755)
+            result = subprocess.run(
+                [str(repo / "scripts" / "notify-telegram.sh"), "moved"],
+                text=True,
+                capture_output=True,
+                env={
+                    **env,
+                    "PATH": f"{root / 'bin'}:{os.environ['PATH']}",
+                    "CURL_ARGS": str(root / "args"),
+                    "CURL_CFG": str(root / "cfg"),
+                },
+            )
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+            self.assertIn("chat_id=99", (root / "args").read_text())
+            self.assertIn("botTOKEN777/sendMessage", (root / "cfg").read_text())
 
 
 if __name__ == "__main__":

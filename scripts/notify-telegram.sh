@@ -4,15 +4,25 @@ set -euo pipefail
 # Send a plain-text message to Telegram.
 # Usage: notify-telegram.sh "message"   or   echo "message" | notify-telegram.sh
 #
-# Config file (default /etc/infra-vps/notify.env, chmod 600):
-#   TELEGRAM_BOT_TOKEN=123:abc        (plain or enc:... via decrypt-value.sh)
-#   TELEGRAM_CHAT_ID=123456789
+# Config (later file overrides earlier):
+#   1. <repo>/config/notify.env  — committed, values encrypted as enc:...
+#      (scripts/encrypt-value.sh), so a new server only needs the master key
+#   2. /etc/infra-vps/notify.env — optional server-local override, chmod 600
+# Keys:
+#   TELEGRAM_BOT_TOKEN=enc:...
+#   TELEGRAM_CHAT_ID=enc:...
+# NOTIFY_CONFIG_FILE=<path> uses only that file.
 #
 # Missing config is not an error: the message is only printed, so scheduled
 # tasks keep working before Telegram is configured.
 
-NOTIFY_CONFIG_FILE="${NOTIFY_CONFIG_FILE:-/etc/infra-vps/notify.env}"
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+if [[ -n "${NOTIFY_CONFIG_FILE:-}" ]]; then
+  config_files=("${NOTIFY_CONFIG_FILE}")
+else
+  config_files=("${REPO_ROOT}/config/notify.env" "/etc/infra-vps/notify.env")
+fi
 DECRYPT_SCRIPT="${DECRYPT_SCRIPT:-${SCRIPT_DIR}/decrypt-value.sh}"
 TELEGRAM_API_URL="${TELEGRAM_API_URL:-https://api.telegram.org}"
 MAX_LEN=3900
@@ -27,10 +37,12 @@ if [[ -z "${message}" ]]; then
   exit 0
 fi
 
-if [[ -r "${NOTIFY_CONFIG_FILE}" ]]; then
-  # shellcheck disable=SC1090
-  source "${NOTIFY_CONFIG_FILE}"
-fi
+for config_file in "${config_files[@]}"; do
+  if [[ -r "${config_file}" ]]; then
+    # shellcheck disable=SC1090
+    source "${config_file}"
+  fi
+done
 
 resolve() {
   local value="$1"
@@ -43,7 +55,7 @@ resolve() {
 }
 
 if [[ -z "${TELEGRAM_BOT_TOKEN:-}" || -z "${TELEGRAM_CHAT_ID:-}" ]]; then
-  echo "[notify] Telegram is not configured (${NOTIFY_CONFIG_FILE}); message follows:"
+  echo "[notify] Telegram is not configured (${config_files[*]}); message follows:"
   printf '%s\n' "${message}"
   exit 0
 fi

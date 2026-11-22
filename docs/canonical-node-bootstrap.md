@@ -39,6 +39,7 @@ cd /opt/infra-vps
 ./scripts/006-deploy-infra.sh
 
 sudo bash /opt/infra-vps/scripts/007-install-dockge.sh
+sudo bash /opt/infra-vps/scripts/008-setup-auto-updates.sh
 ```
 
 If there is no old environment and no existing encrypted registry values,

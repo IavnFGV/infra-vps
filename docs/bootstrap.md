@@ -18,6 +18,7 @@ sudo SERVER_PUBLIC_IP=<server-ip> bash scripts/002-setup-wireguard.sh
 sudo bash scripts/004-install-scheduled-tasks.sh
 sudo bash scripts/005-setup-node-layout.sh
 ./scripts/006-deploy-infra.sh
+sudo bash scripts/008-setup-auto-updates.sh
 ```
 
 ## Result
