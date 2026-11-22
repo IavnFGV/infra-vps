@@ -66,8 +66,12 @@ else
   # already point to a newer build than the container uses).
   # label = compose project/service of the containers using it.
   declare -A image_labels=() image_refs=()
-  inspect_format='{{.Image}}	{{.Config.Image}}	{{index .Config.Labels "com.docker.compose.project"}}	{{index .Config.Labels "com.docker.compose.service"}}	{{.Name}}'
-  while IFS=$'\t' read -r image_id ref project service name; do
+  # With the containerd image store, a container's .Image is the index digest
+  # while the tag resolves per platform to a manifest digest; compare manifests.
+  inspect_format='{{.Image}}	{{.Config.Image}}	{{index .Config.Labels "com.docker.compose.project"}}	{{index .Config.Labels "com.docker.compose.service"}}	{{.Name}}	{{with .ImageManifestDescriptor}}{{.Digest}}{{end}}'
+  platform="$(docker version --format '{{.Server.Os}}/{{.Server.Arch}}' 2>/dev/null || true)"
+  declare -A image_manifests=()
+  while IFS=$'\t' read -r image_id ref project service name manifest; do
     [[ -n "${image_id}" ]] || continue
     if [[ -n "${project}" && -n "${service}" ]]; then
       label="${project}/${service}"
@@ -79,6 +83,7 @@ else
     else
       image_labels["${image_id}"]="${label}"
       image_refs["${image_id}"]="${ref}"
+      image_manifests["${image_id}"]="${manifest}"
     fi
   done < <(docker ps -q | xargs -r docker inspect --format "${inspect_format}" | sort)
 
@@ -90,7 +95,13 @@ else
     out="${scan_dir}/image-${i}.json"
     target=(--skip-db-update --output "${out}")
 
-    if [[ "$(docker image inspect --format '{{.Id}}' "${ref}" 2>/dev/null || true)" == "${image_id}" ]]; then
+    manifest="${image_manifests[${image_id}]}"
+    tag_id="$(docker image inspect --format '{{.Id}}' "${ref}" 2>/dev/null || true)"
+    tag_manifest=""
+    if [[ -n "${manifest}" && -n "${platform}" ]]; then
+      tag_manifest="$(docker image inspect --platform "${platform}" --format '{{.Id}}' "${ref}" 2>/dev/null || true)"
+    fi
+    if [[ "${tag_id}" == "${image_id}" || ( -n "${manifest}" && "${tag_manifest}" == "${manifest}" ) ]]; then
       target+=("${ref}")
     else
       summarize_args+=(--scan-error "${label}=container runs an outdated image (${ref} now points to a newer build); recreate the stack")

@@ -47,18 +47,22 @@ exit 0
 FAKE_DOCKER = """#!/usr/bin/env bash
 # containers: id -> "imageId<TAB>ref<TAB>project<TAB>service<TAB>/name"
 case "$1" in
-  ps) printf 'c1\\nc2\\n' ;;
+  ps) printf 'c1\\nc2\\nc3\\n' ;;
+  version) echo linux/amd64 ;;
   inspect)
     shift 3
     for c in "$@"; do
       case "$c" in
         c1) printf 'sha256:aaaaaaaaaaaaaaaa\\ttts-service-tts\\ttts-service\\ttts\\t/tts-1\\n' ;;
-        c2) printf 'sha256:bbbbbbbbbbbbbbbb\\tnginx:1.30.7-alpine\\tinfra-vps\\tnginx\\t/infra-vps-nginx-1\\n' ;;
+        c2) printf 'sha256:bbbbbbbbbbbbbbbb\\tnginx:1.30.7-alpine\\tinfra-vps\\tnginx\\t/infra-vps-nginx-1\\t\\n' ;;
+        # containerd image store: .Image is the index, manifest digest differs
+        c3) printf 'sha256:index000000000000\\tbot-app\\tbot\\tapp\\t/bot-app-1\\tsha256:manifest00000000\\n' ;;
       esac
     done ;;
   image)
     case "${@: -1}" in
       tts-service-tts) echo "${TTS_TAG_ID:-sha256:aaaaaaaaaaaaaaaa}" ;;
+      bot-app) if [[ "$*" == *--platform* ]]; then echo sha256:manifest00000000; else echo sha256:otherindex000000; fi ;;
       nginx:1.30.7-alpine) echo sha256:bbbbbbbbbbbbbbbb ;;
       *) exit 1 ;;
     esac ;;
@@ -120,7 +124,8 @@ class SecurityReportTests(unittest.TestCase):
 
     def test_first_run_notifies_new_fixable_findings_only(self):
         result, sent = self.run_report()
-        self.assertIn("New fixable vulnerabilities: 3", sent)  # host + 2 images
+        self.assertIn("New fixable vulnerabilities: 4", sent)  # host + 3 images
+        self.assertNotIn("outdated image", sent)  # containerd store: manifest matches
         self.assertIn("CVE-2026-0001", sent)
         self.assertNotIn("CVE-2026-0002", sent)  # no fix available -> ignored
         self.assertIn("tts-service/tts", sent)
@@ -141,13 +146,13 @@ class SecurityReportTests(unittest.TestCase):
         self.run_report()
         self.env["HEARTBEAT_WEEKDAY"] = subprocess.check_output(["date", "+%u"], text=True).strip()
         _, sent = self.run_report()
-        self.assertIn("Weekly status: 3 fixable", sent)
+        self.assertIn("Weekly status: 4 fixable", sent)
 
     def test_resolved_findings_are_reported(self):
         self.run_report()
         (self.root / "vuln.json").write_text(json.dumps({"Results": []}))
         _, sent = self.run_report()
-        self.assertIn("Resolved since last scan: 3", sent)
+        self.assertIn("Resolved since last scan: 4", sent)
 
 
 class SecurityReportEdgeCaseTests(SecurityReportTests):
