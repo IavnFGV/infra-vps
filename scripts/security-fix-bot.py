@@ -281,8 +281,18 @@ class Telegram:
         data = urllib.parse.urlencode({
             key: json.dumps(value) if isinstance(value, (dict, list)) else value
             for key, value in params.items() if value is not None}).encode()
-        with urllib.request.urlopen(f"{self.base}/{method}", data=data, timeout=http_timeout) as resp:
-            return json.loads(resp.read() or b"{}")
+        try:
+            with urllib.request.urlopen(f"{self.base}/{method}", data=data,
+                                        timeout=http_timeout) as resp:
+                return json.loads(resp.read() or b"{}")
+        except urllib.error.HTTPError as exc:
+            # A failed answer/edit must not stop a fix half-way; log what
+            # Telegram said and go on. getUpdates errors are handled by poll().
+            body = exc.read().decode(errors="replace")[:500]
+            log(f"Telegram {method} failed: {exc.code} {body}")
+            if method == "getUpdates":
+                raise
+            return {"ok": False}
 
 
 def tail(text: str, limit: int = 3000) -> str:
