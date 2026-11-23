@@ -36,6 +36,7 @@ After=network-online.target docker.service
 Wants=network-online.target
 
 [Service]
+Environment=INFRA_MASTER_KEY_FILE=/opt/infra-secrets/master.key
 ExecStart=/usr/bin/python3 -I ${REPO_ROOT}/scripts/security-fix-bot.py
 Restart=always
 RestartSec=30

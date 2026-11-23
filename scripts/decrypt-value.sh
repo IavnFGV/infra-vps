@@ -13,7 +13,7 @@ fi
 ENCRYPTED="$1"
 
 # Default key file location
-DEFAULT_KEY_FILE="${HOME}/.infra-vps-master.key"
+DEFAULT_KEY_FILE="${HOME:-/root}/.infra-vps-master.key"
 KEY_FILE="${INFRA_MASTER_KEY_FILE:-${DEFAULT_KEY_FILE}}"
 
 if [[ ! -f "${KEY_FILE}" ]]; then
