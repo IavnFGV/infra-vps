@@ -131,6 +131,7 @@ class SecurityReportTests(unittest.TestCase):
             "REBOOT_REQUIRED_FILE": str(self.root / "no-reboot"),
             "HEARTBEAT_WEEKDAY": "",
             "DOCKER_SAVES": str(self.root / "docker-saves"),
+            "NOTIFY_CONFIG_FILE": str(self.root / "notify.env"),  # no GITHUB_FIX_TOKEN
         }
 
     def tearDown(self):
@@ -245,6 +246,14 @@ class SecurityReportTests(unittest.TestCase):
         self.assertEqual(fixes["proposals"][fix_id]["action"],
                          {"type": "compose-pull", "working_dir": "/opt/dockge/stacks/bot",
                           "project": "bot"})
+
+        # with a GitHub token the tts fix gets its button too
+        (self.root / "notify.env").write_text("GITHUB_FIX_TOKEN=enc:x\n")
+        (self.root / "reports" / "state.json").unlink()
+        _, with_token = self.run_report()
+        markup = json.loads((self.root / "notify-out.markup").read_text())
+        self.assertIn("🔧 Fix tts-service/tts (1)", [row[0]["text"] for row in markup["inline_keyboard"]])
+        self.assertNotIn("[needs GITHUB_FIX_TOKEN]", with_token)
 
     def test_host_fix_is_apt_upgrade_of_its_packages(self):
         _, sent = self.run_report()

@@ -139,7 +139,13 @@ if docker ps -q | xargs -r docker inspect > "${containers_json}" 2>/dev/null; th
 fi
 
 # A github-workflow fix needs a token; without it the fix is shown, no button.
-for config_file in "${REPO_ROOT}/config/notify.env" /etc/infra-vps/notify.env; do
+# (same config files as scripts/notify-telegram.sh)
+if [[ -n "${NOTIFY_CONFIG_FILE:-}" ]]; then
+  fix_config_files=("${NOTIFY_CONFIG_FILE}")
+else
+  fix_config_files=("${REPO_ROOT}/config/notify.env" /etc/infra-vps/notify.env)
+fi
+for config_file in "${fix_config_files[@]}"; do
   if [[ -r "${config_file}" ]] && grep -q '^GITHUB_FIX_TOKEN=.' "${config_file}"; then
     summarize_args+=(--github-fix-ready)
   fi
