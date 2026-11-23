@@ -114,7 +114,10 @@ else
     fi
 
     # compose labels the images it builds; a pulled image has no such label.
-    if [[ -n "$(docker image inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' "${image_id}" 2>/dev/null || true)" ]]; then
+    # (by tag: with the containerd store the running image id may not resolve)
+    built_by="$(docker image inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' "${ref}" 2>/dev/null \
+      || docker image inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' "${image_id}" 2>/dev/null || true)"
+    if [[ -n "${built_by}" && "${built_by}" != "<no value>" ]]; then
       summarize_args+=(--built-locally "${label}")
     fi
 
@@ -128,6 +131,21 @@ else
   done
 fi
 
+# Container labels (compose project, working dir, infra-vps.fix*) let the
+# summarizer offer a fix for each component; see docs/security-updates.md.
+containers_json="${scan_dir}/containers.inspect"
+if docker ps -q | xargs -r docker inspect > "${containers_json}" 2>/dev/null; then
+  summarize_args+=(--containers "${containers_json}")
+fi
+
+# A github-workflow fix needs a token; without it the fix is shown, no button.
+for config_file in "${REPO_ROOT}/config/notify.env" /etc/infra-vps/notify.env; do
+  if [[ -r "${config_file}" ]] && grep -q '^GITHUB_FIX_TOKEN=.' "${config_file}"; then
+    summarize_args+=(--github-fix-ready)
+  fi
+done
+summarize_args+=(--host-fix "${HOST_AUTOFIX:-apt-upgrade}" --fixes "${REPORT_DIR}/fixes.json")
+
 # Old kernels left on disk are not running; don't report them.
 summarize_args+=(--running-kernel "$(uname -r)")
 
@@ -138,11 +156,13 @@ fi
 stamp="$(date +%Y-%m-%d)"
 report="${REPORT_DIR}/${stamp}.txt"
 message="${scan_dir}/message.txt"
+markup="${scan_dir}/reply-markup.txt"
 
 python3 -I "${SUMMARIZE}" "${summarize_args[@]}" \
   --state "${REPORT_DIR}/state.json" \
   --report "${report}" \
   --message "${message}" \
+  --reply-markup "${markup}" \
   --uu-log "${UU_LOG}" \
   --reboot-required-file "${REBOOT_REQUIRED_FILE}"
 
@@ -154,7 +174,7 @@ cat "${report}"
 
 if [[ -s "${message}" ]]; then
   log "Sending notification"
-  "${NOTIFY_BIN}" < "${message}" || log "WARNING: notification failed"
+  NOTIFY_REPLY_MARKUP_FILE="${markup}" "${NOTIFY_BIN}" < "${message}" || log "WARNING: notification failed"
 else
   log "Nothing new; no notification"
 fi

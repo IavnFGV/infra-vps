@@ -19,6 +19,7 @@ sudo bash scripts/004-install-scheduled-tasks.sh
 sudo bash scripts/005-setup-node-layout.sh
 ./scripts/006-deploy-infra.sh
 sudo bash scripts/008-setup-auto-updates.sh
+sudo bash scripts/009-setup-security-fix-bot.sh
 ```
 
 ## Result

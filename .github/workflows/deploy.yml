@@ -94,6 +94,7 @@ jobs:
             test "$(git rev-parse HEAD)" = "${DEPLOY_SHA}"
             ./scripts/006-deploy-infra.sh </dev/null
             ./scripts/apply-services.sh </dev/null
+            sudo ./scripts/009-setup-security-fix-bot.sh </dev/null
             docker compose ps
             echo "Deployed commit $(git rev-parse HEAD)"
             DEPLOY

@@ -64,7 +64,7 @@ class DeployInfraTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("CI_DONE", result.stdout)
         self.assertIn("compose pull certbot", calls)
-        self.assertIn("compose build --pull nginx", calls)
+        self.assertRegex(calls, r"compose build --pull --build-arg SECURITY_REFRESH=\d{8}T\d{6} nginx")
         self.assertLess(calls.index("compose build"), calls.index("compose run"))
         self.assertIn("--interactive=false", calls)
         self.assertLess(calls.index("compose run"), calls.index("compose up"))

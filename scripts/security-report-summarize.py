@@ -10,7 +10,9 @@ Usage:
       --state <state.json> --report <report.txt> --message <message.txt> \
       [--uu-log /var/log/unattended-upgrades/unattended-upgrades.log] \
       [--since-hours 24] [--reboot-required-file /var/run/reboot-required] \
-      [--heartbeat] [--built-locally <label> ...]
+      [--heartbeat] [--built-locally <label> ...] \
+      [--containers <docker inspect json>] [--fixes fixes.json] \
+      [--reply-markup markup.json] [--github-fix-ready] [--host-fix apt-upgrade|none]
 
 Writes the full report to --report, and a short Telegram message to
 --message only when something is worth telling (new fixable vulnerabilities,
@@ -24,6 +26,15 @@ Every finding gets a fix route:
   upstream  anything in a pulled third-party image: needs a newer upstream
             image (or our own Dockerfile on top)
   host      host OS package: unattended-upgrades
+
+Auto-fix: a component (compose service) opts in with container labels
+  infra-vps.fix=github-workflow  infra-vps.fix.repo=<owner/repo>
+                                 [infra-vps.fix.workflow=deploy.yml] [infra-vps.fix.ref=main]
+  infra-vps.fix=compose-rebuild  (docker compose build --pull + up, in its working dir)
+  infra-vps.fix=compose-pull     (docker compose pull + up; for pulled images)
+and the host with --host-fix apt-upgrade. Each fixable component becomes a
+proposal in --fixes and a Telegram button in --reply-markup; the button is
+handled by scripts/security-fix-bot.py, which runs the action.
 """
 
 from __future__ import annotations
@@ -32,6 +43,7 @@ import argparse
 import datetime as dt
 import json
 import re
+import secrets
 from pathlib import Path
 
 SEVERITY_ORDER = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3, "UNKNOWN": 4}
@@ -42,6 +54,14 @@ ROUTES = {
     "deps": "🛠 deps/Dockerfile change",
     "upstream": "📥 new upstream image",
     "host": "🖥 host unattended-upgrades",
+}
+FIX_TTL_HOURS = 7 * 24
+# Which finding routes a fix action actually removes.
+FIX_ACTIONS = {
+    "github-workflow": {"rebuild"},
+    "compose-rebuild": {"rebuild"},
+    "compose-pull": {"upstream"},
+    "apt-upgrade": {"host"},
 }
 # Vendor whose CVSS vector decides "network-exploitable" when Trivy's own
 # severity source has none.
@@ -190,6 +210,110 @@ def fmt_resolved(key: str, item) -> str:
             f"was {item['installed']}, fixed in {item['fixed']}")
 
 
+def load_components(path: Path | None) -> dict[str, dict]:
+    """compose project/service (or container name) -> labels and restart set."""
+    if not path:
+        return {}
+    try:
+        containers = json.loads(path.read_text() or "[]")
+    except (OSError, json.JSONDecodeError):
+        return {}
+    components, by_project = {}, {}
+    for container in containers:
+        labels = (container.get("Config") or {}).get("Labels") or {}
+        name = (container.get("Name") or "").lstrip("/")
+        project = labels.get("com.docker.compose.project", "")
+        service = labels.get("com.docker.compose.service", "")
+        label = f"{project}/{service}" if project and service else name
+        fix = {key.removeprefix("infra-vps.fix").lstrip(".") or "type": value
+               for key, value in labels.items()
+               if key == "infra-vps.fix" or key.startswith("infra-vps.fix.")}
+        components[label] = {
+            "project": project,
+            "working_dir": labels.get("com.docker.compose.project.working_dir", ""),
+            "fix": fix,
+            "containers": [name],
+        }
+        by_project.setdefault(project or name, set()).add(name)
+    for comp in components.values():
+        if comp["project"]:
+            comp["containers"] = sorted(by_project[comp["project"]])
+    return components
+
+
+def describe_action(action) -> str:
+    kind = action["type"]
+    if kind == "github-workflow":
+        return f"rebuild + redeploy: GitHub {action['repo']} {action['workflow']}"
+    if kind == "compose-rebuild":
+        return f"docker compose build --pull + up in {action['working_dir']}"
+    if kind == "compose-pull":
+        return f"docker compose pull + up in {action['working_dir']} (if upstream has a newer image)"
+    if kind == "apt-upgrade":
+        return f"apt-get install --only-upgrade ({len(action['packages'])} packages)"
+    return kind
+
+
+def plan_fixes(findings, components, host_fix: str, github_ready: bool):
+    """One proposal per component that has findings its fix action removes."""
+    by_label: dict[str, list] = {}
+    for key, item in findings.items():
+        by_label.setdefault(item["label"], []).append((key, item))
+    proposals = []
+    for label in sorted(by_label):
+        items = by_label[label]
+        blocked = ""
+        if label == "host":
+            if host_fix != "apt-upgrade":
+                continue
+            pkgs = sorted({i["pkg"] for _, i in items})
+            action = {"type": "apt-upgrade", "packages": pkgs}
+            restarts = ["host services using the updated libraries (needrestart)"]
+            if any(p.startswith("linux-") for p in pkgs):
+                restarts.append("host reboot (kernel) in the 04:30 window")
+        else:
+            comp = components.get(label) or components.get(label.split(",")[0])
+            if not comp:
+                continue
+            fix = comp["fix"]
+            kind = fix.get("type", "")
+            if kind == "github-workflow":
+                if not re.fullmatch(r"[\w.-]+/[\w.-]+", fix.get("repo", "")):
+                    continue
+                action = {"type": kind, "repo": fix["repo"],
+                          "workflow": fix.get("workflow") or "deploy.yml",
+                          "ref": fix.get("ref") or "main"}
+                if not github_ready:
+                    blocked = "needs GITHUB_FIX_TOKEN"
+            elif kind in ("compose-rebuild", "compose-pull"):
+                if not comp["working_dir"]:
+                    continue
+                action = {"type": kind, "working_dir": comp["working_dir"],
+                          "project": comp["project"]}
+            else:
+                continue
+            restarts = comp["containers"]
+        fixed = [key for key, item in items if item["route"] in FIX_ACTIONS[action["type"]]]
+        if not fixed:
+            continue
+        proposals.append({
+            "id": secrets.token_hex(4),
+            "label": label,
+            "action": action,
+            "fixes": len(fixed),
+            "total": len(items),
+            "restarts": restarts,
+            "blocked": blocked,
+        })
+    return proposals
+
+
+def fmt_proposal(p) -> str:
+    text = (f"- {p['label']}: {describe_action(p['action'])} -> fixes {p['fixes']} of {p['total']}; "
+            f"restarts: {', '.join(p['restarts'])}")
+    return text + (f" [{p['blocked']}]" if p["blocked"] else "")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--scan", action="append", type=split_pair, default=[])
@@ -205,6 +329,11 @@ def main() -> int:
     parser.add_argument("--heartbeat", action="store_true")
     parser.add_argument("--built-locally", action="append", default=[],
                         help="label of an image built from our Dockerfile (others are upstream)")
+    parser.add_argument("--containers", type=Path, help="docker inspect JSON of running containers")
+    parser.add_argument("--fixes", type=Path, help="where to store auto-fix proposals")
+    parser.add_argument("--reply-markup", type=Path, help="Telegram buttons for the message")
+    parser.add_argument("--github-fix-ready", action="store_true")
+    parser.add_argument("--host-fix", default="none", choices=["apt-upgrade", "none"])
     parser.add_argument("--running-kernel", help="uname -r; host packages of other kernels are ignored")
     parser.add_argument("--now", help="override current time (tests), ISO format")
     args = parser.parse_args()
@@ -268,6 +397,12 @@ def main() -> int:
         lines.append("")
         lines.append(f"== Resolved since last scan: {len(fixed_keys)} ==")
         lines.extend(fmt_resolved(k, previous[k]) for k in fixed_keys)
+    proposals = plan_fixes(findings, load_components(args.containers),
+                           args.host_fix, args.github_fix_ready)
+    if proposals:
+        lines.append("")
+        lines.append("== Auto-fix available (Telegram button) ==")
+        lines.extend(fmt_proposal(p) for p in proposals)
     if scan_errors:
         lines.append("")
         lines.append("== Scan errors ==")
@@ -321,7 +456,26 @@ def main() -> int:
                 crit_text = f", CRITICAL {len(crit)} (🌐 {net})"
             msg.append(f"- {label}: {len(label_items)}{crit_text}; {fmt_routes(label_items)}")
 
+    if msg and proposals:
+        msg.append("🔧 Auto-fix available:")
+        msg.extend(fmt_proposal(p) for p in proposals)
     args.message.write_text(("Security report\n" + "\n".join(msg) + "\n") if msg else "")
+
+    # Buttons go out with the message; the previous proposals stay valid while
+    # nothing new is sent, so older buttons keep working.
+    ready = [p for p in proposals if not p["blocked"]]
+    if args.reply_markup:
+        markup = {"inline_keyboard": [[{
+            "text": f"🔧 Fix {p['label']} ({p['fixes']})"[:60],
+            "callback_data": f"fix:{p['id']}",
+        }] for p in ready]} if msg and ready else None
+        args.reply_markup.write_text(json.dumps(markup) if markup else "")
+    if args.fixes and msg:
+        args.fixes.write_text(json.dumps({
+            "created": now.isoformat(timespec="seconds"),
+            "expires": (now + dt.timedelta(hours=FIX_TTL_HOURS)).isoformat(timespec="seconds"),
+            "proposals": {p["id"]: {**p, "status": "pending"} for p in ready},
+        }, indent=1))
     args.state.write_text(json.dumps(findings, indent=1, sort_keys=True))
     return 0
 

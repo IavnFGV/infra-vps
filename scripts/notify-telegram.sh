@@ -12,6 +12,7 @@ set -euo pipefail
 #   TELEGRAM_BOT_TOKEN=enc:...
 #   TELEGRAM_CHAT_ID=enc:...
 # NOTIFY_CONFIG_FILE=<path> uses only that file.
+# NOTIFY_REPLY_MARKUP_FILE=<path> attaches Telegram reply_markup JSON (buttons).
 #
 # Missing config is not an error: the message is only printed, so scheduled
 # tasks keep working before Telegram is configured.
@@ -76,7 +77,12 @@ trap 'rm -f "${curl_cfg}"' EXIT
 chmod 600 "${curl_cfg}"
 printf 'url = "%s/bot%s/sendMessage"\n' "${TELEGRAM_API_URL}" "${token}" > "${curl_cfg}"
 
-if ! curl -fsS --max-time 20 --config "${curl_cfg}" \
+markup_args=()
+if [[ -s "${NOTIFY_REPLY_MARKUP_FILE:-}" ]]; then
+  markup_args=(--data-urlencode "reply_markup@${NOTIFY_REPLY_MARKUP_FILE}")
+fi
+
+if ! curl -fsS --max-time 20 --config "${curl_cfg}" "${markup_args[@]}" \
   --data-urlencode "chat_id=${chat_id}" \
   --data-urlencode "text=${message}" \
   --data-urlencode "disable_web_page_preview=true" \

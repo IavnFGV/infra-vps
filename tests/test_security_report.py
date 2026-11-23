@@ -47,12 +47,27 @@ done
 exit 0
 """
 
+CONTAINERS_JSON = json.dumps([
+    {"Name": "/tts-1", "Config": {"Labels": {
+        "com.docker.compose.project": "tts-service", "com.docker.compose.service": "tts",
+        "com.docker.compose.project.working_dir": "/opt/dockge/stacks/tts-service",
+        "infra-vps.fix": "github-workflow", "infra-vps.fix.repo": "owner/tts-service"}}},
+    {"Name": "/infra-vps-nginx-1", "Config": {"Labels": {
+        "com.docker.compose.project": "infra-vps", "com.docker.compose.service": "nginx",
+        "com.docker.compose.project.working_dir": "/workspaces/infra-vps"}}},
+    {"Name": "/bot-app-1", "Config": {"Labels": {
+        "com.docker.compose.project": "bot", "com.docker.compose.service": "app",
+        "com.docker.compose.project.working_dir": "/opt/dockge/stacks/bot",
+        "infra-vps.fix": "compose-pull"}}},
+])
+
 FAKE_DOCKER = """#!/usr/bin/env bash
 # containers: id -> "imageId<TAB>ref<TAB>project<TAB>service<TAB>/name"
 case "$1" in
   ps) printf 'c1\\nc2\\nc3\\n' ;;
   version) echo linux/amd64 ;;
   inspect)
+    if [[ "$2" != --format ]]; then cat "$CONTAINERS_FIXTURE"; exit 0; fi
     shift 3
     for c in "$@"; do
       case "$c" in
@@ -63,11 +78,13 @@ case "$1" in
       esac
     done ;;
   image)
+    if [[ "$*" == *com.docker.compose.project* ]]; then
+      # only the tts image is built by compose; the others are pulled
+      [[ "${@: -1}" == tts-service-tts ]] && echo tts-service || echo '<no value>'
+      exit 0
+    fi
     case "${@: -1}" in
       tts-service-tts) echo "${TTS_TAG_ID:-sha256:aaaaaaaaaaaaaaaa}" ;;
-      # compose project label: only the tts image is built locally
-      sha256:aaaaaaaaaaaaaaaa) echo tts-service ;;
-      sha256:bbbbbbbbbbbbbbbb|sha256:index000000000000) echo ;;
       bot-app) if [[ "$*" == *--platform* ]]; then echo sha256:manifest00000000; else echo sha256:otherindex000000; fi ;;
       nginx:1.30.7-alpine) echo sha256:bbbbbbbbbbbbbbbb ;;
       *) exit 1 ;;
@@ -88,10 +105,14 @@ class SecurityReportTests(unittest.TestCase):
             path.write_text(body)
             path.chmod(0o755)
         notify = self.root / "notify"
-        notify.write_text('#!/usr/bin/env bash\ncat >> "$NOTIFY_OUT"\n')
+        notify.write_text('#!/usr/bin/env bash\ncat >> "$NOTIFY_OUT"\n'
+                          '[[ -s "${NOTIFY_REPLY_MARKUP_FILE:-}" ]] && cp "$NOTIFY_REPLY_MARKUP_FILE" "$NOTIFY_OUT.markup"\n'
+                          'exit 0\n')
         notify.chmod(0o755)
         fixture = self.root / "vuln.json"
         fixture.write_text(json.dumps(VULN_JSON))
+        containers = self.root / "containers.json"
+        containers.write_text(CONTAINERS_JSON)
         uu_log = self.root / "uu.log"
         uu_log.write_text(
             "2000-01-01 03:30:00,000 INFO Packages that will be upgraded: old-pkg\n"
@@ -101,6 +122,7 @@ class SecurityReportTests(unittest.TestCase):
             "PATH": f"{bin_dir}:{os.environ['PATH']}",
             "TRIVY_CALLS": str(self.root / "trivy-calls"),
             "TRIVY_FIXTURE": str(fixture),
+            "CONTAINERS_FIXTURE": str(containers),
             "NOTIFY_BIN": str(notify),
             "NOTIFY_OUT": str(self.root / "notify-out"),
             "REPORT_DIR": str(self.root / "reports"),
@@ -201,6 +223,36 @@ class SecurityReportTests(unittest.TestCase):
         _, sent = self.run_report()
         self.assertIn("Weekly status: 24 fixable HIGH/CRITICAL open (5 unique CVE, 12 packages)", sent)
         self.assertIn("- tts-service/tts: 8, CRITICAL 2 (🌐 1); ♻️ rebuild image 7, 🛠 deps/Dockerfile change 1", sent)
+
+
+    def test_fix_proposals_and_buttons(self):
+        self.env["SCAN_HOST"] = "false"
+        _, sent = self.run_report()
+        # bot/app opted in with compose-pull: its (upstream) finding gets a button
+        self.assertIn("🔧 Auto-fix available:", sent)
+        self.assertIn("- bot/app: docker compose pull + up in /opt/dockge/stacks/bot", sent)
+        self.assertIn("restarts: bot-app-1", sent)
+        # tts opted in with github-workflow, but no token: shown, no button
+        self.assertIn("tts-service/tts: rebuild + redeploy: GitHub owner/tts-service deploy.yml", sent)
+        self.assertIn("[needs GITHUB_FIX_TOKEN]", sent)
+        # nginx has no infra-vps.fix label: no proposal
+        self.assertNotIn("- infra-vps/nginx:", sent)
+        markup = json.loads((self.root / "notify-out.markup").read_text())
+        buttons = [row[0] for row in markup["inline_keyboard"]]
+        self.assertEqual([b["text"] for b in buttons], ["🔧 Fix bot/app (1)"])
+        fixes = json.loads((self.root / "reports" / "fixes.json").read_text())
+        fix_id = buttons[0]["callback_data"].removeprefix("fix:")
+        self.assertEqual(fixes["proposals"][fix_id]["action"],
+                         {"type": "compose-pull", "working_dir": "/opt/dockge/stacks/bot",
+                          "project": "bot"})
+
+    def test_host_fix_is_apt_upgrade_of_its_packages(self):
+        _, sent = self.run_report()
+        self.assertIn("- host: apt-get install --only-upgrade (1 packages) -> fixes 1 of 1", sent)
+        self.env["HOST_AUTOFIX"] = "none"
+        (self.root / "reports" / "state.json").unlink()
+        _, sent = self.run_report()
+        self.assertNotIn("- host: apt-get", sent)
 
 
 class SecurityReportEdgeCaseTests(SecurityReportTests):

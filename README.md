@@ -137,6 +137,7 @@ sudo bash scripts/005-setup-node-layout.sh
 ./scripts/006-deploy-infra.sh
 sudo bash scripts/007-install-dockge.sh
 sudo bash scripts/008-setup-auto-updates.sh
+sudo bash scripts/009-setup-security-fix-bot.sh
 ```
 
 Automatic security updates and the daily vulnerability report are described in

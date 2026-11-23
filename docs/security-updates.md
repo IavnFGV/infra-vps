@@ -86,6 +86,80 @@ Files:
 - `/var/log/infra-vps-scheduled-tasks/infra__security-report.log` — task output
 - `/var/log/unattended-upgrades/unattended-upgrades.log` — apt upgrades
 
+## Auto-fix buttons in Telegram
+
+When a finding can be fixed without a code change, the message carries a
+button `🔧 Fix <component> (N)` and a line saying what will run, how many
+findings it closes and which containers restart. Pressing it asks for
+confirmation; `✅ Запустить` runs the fix, the bot reports the result
+(with the GitHub run link) and rescans, so the next message shows
+`✅ Resolved`.
+
+Pieces:
+
+- classifier: `scripts/security-report-summarize.py` (`plan_fixes`) — one
+  proposal per component, stored in `/var/log/infra-vps-security/fixes.json`
+  (valid 7 days, replaced by the next sent report)
+- buttons: `scripts/security-fix-bot.py`, systemd unit
+  `infra-vps-security-fix-bot`, installed/updated by
+  `scripts/009-setup-security-fix-bot.sh` (run by every infra deploy;
+  restarts the bot only when its code changed). Telegram long polling:
+  no webhook, no open port. Log: `/var/log/infra-vps-security/fixes.log`
+- only presses from `TELEGRAM_CHAT_ID` by a user in `TELEGRAM_ADMIN_IDS`
+  (default: the chat id itself = you, in a private chat with the bot) are
+  accepted; the button carries only a proposal id, the action comes from
+  `fixes.json`
+
+What is offered:
+
+| Fix type | Closes | Declared by |
+|---|---|---|
+| `github-workflow` | OS packages in an image we build (`♻️ rebuild`) | container labels, see below |
+| `compose-rebuild` | same, for a stack without CI | container labels |
+| `compose-pull` | anything in a pulled image, if upstream has a newer one | container labels |
+| `apt-upgrade` | host packages (`apt-get install --only-upgrade`) | always, `HOST_AUTOFIX=none` in `scheduled-tasks/security-report.env` turns it off |
+
+`🛠 deps/Dockerfile change` findings never get a button: they need a
+dependency bump (Dependabot) or a Dockerfile edit.
+
+### Adding a service or component
+
+Scanning needs nothing: every running container is scanned. For a fix
+button add labels to the service in its compose file and redeploy it:
+
+```yaml
+services:
+  app:
+    labels:
+      infra-vps.fix: github-workflow          # run the repo's deploy workflow
+      infra-vps.fix.repo: <owner>/<repo>
+      infra-vps.fix.workflow: deploy.yml      # default deploy.yml
+      infra-vps.fix.ref: main                 # default main
+      # or: infra-vps.fix: compose-rebuild    # build --pull + up -d in the stack dir
+      # or: infra-vps.fix: compose-pull       # pull + up -d (third-party image)
+```
+
+For `github-workflow` the workflow must have `workflow_dispatch` and must
+not be stopped by the build cache: pass a per-build `SECURITY_REFRESH`
+build arg before the `apt-get upgrade` layer (see TtsService). The token
+must cover the repo.
+
+A new kind of fix = a function in `EXECUTORS` (`security-fix-bot.py`) plus
+its rule in `FIX_ACTIONS` / `plan_fixes` (summarizer).
+
+### GitHub token for `github-workflow`
+
+Fine-grained personal access token: repositories `infra-vps`,
+`tts-service`, `EnglishBot-with-agents` (and new ones), permission
+**Actions: Read and write**, nothing else. Then:
+
+```bash
+./scripts/encrypt-value.sh "<token>"   # -> add GITHUB_FIX_TOKEN=enc:... to config/notify.env
+```
+
+(or a plain `GITHUB_FIX_TOKEN=...` in `/etc/infra-vps/notify.env`, chmod 600).
+Without it those fixes are listed with `[needs GITHUB_FIX_TOKEN]` and no button.
+
 ## A vulnerability shows up in the report. What now?
 
 - **host**: usually fixed in `-updates`, not `-security`; it will arrive with

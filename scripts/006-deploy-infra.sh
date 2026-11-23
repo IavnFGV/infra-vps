@@ -62,7 +62,7 @@ echo "Using certbot runtime UID:GID ${CERTBOT_UID}:${CERTBOT_GID}"
 ./scripts/init-edge-network.sh "${EDGE_NETWORK:-edge}"
 docker compose config --quiet
 docker compose pull certbot
-docker compose build --pull nginx
+docker compose build --pull --build-arg SECURITY_REFRESH="$(date -u +%Y%m%dT%H%M%S)" nginx
 docker compose run --rm --no-deps --interactive=false nginx nginx -t </dev/null
 docker compose up -d nginx
 ./scripts/check-nginx.sh
