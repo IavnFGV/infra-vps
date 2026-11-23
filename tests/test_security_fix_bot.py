@@ -38,6 +38,9 @@ class FakeApi:
                 api.requests.append(("GET", self.path, None, dict(self.headers)))
                 if self.path.endswith("/runs?event=workflow_dispatch&per_page=10"):
                     self.reply({"workflow_runs": api.github_runs})
+                elif self.path.endswith("/jobs"):
+                    self.reply({"jobs": [{"name": "test", "conclusion": "success"},
+                                         {"name": "deploy", "conclusion": None}]})
                 elif "/actions/runs/" in self.path:
                     self.reply(api.run_after_dispatch)
                 else:
@@ -80,7 +83,7 @@ class FixBotTests(unittest.TestCase):
         docker.write_text('#!/usr/bin/env bash\nprintf "%s | %s\\n" "$PWD" "$*" >> "$DOCKER_CALLS"\n')
         docker.chmod(0o755)
         report = self.root / "report.sh"
-        report.write_text('echo rescan >> "$DOCKER_CALLS"\n')
+        report.write_text('echo "rescan $STATUS_TITLE" >> "$DOCKER_CALLS"\n')
         (self.root / "stack").mkdir()
         config = self.root / "notify.env"
         config.write_text("TELEGRAM_BOT_TOKEN=T\nTELEGRAM_CHAT_ID=100\nGITHUB_FIX_TOKEN=GH\n")
@@ -135,7 +138,9 @@ class FixBotTests(unittest.TestCase):
         calls = self.docker_calls()
         self.assertIn(f"{self.root / 'stack'} | compose -p bot build --pull", calls)
         self.assertIn("compose -p bot up -d --wait", calls)
-        self.assertTrue(calls.endswith("rescan\n"))
+        edits = [e["text"] for e in self.api.telegram_calls("editMessageText")]
+        self.assertTrue(any("▶ шаг 2/2: docker compose -p bot" in e for e in edits))
+        self.assertTrue(calls.endswith("rescan 📋 После фикса bot/app\n"))
         self.assertEqual(self.status(), "done")
         self.assertIn("✅ Готово: bot/app", self.api.telegram_calls("sendMessage")[-1]["text"])
 
@@ -172,6 +177,12 @@ class FixBotTests(unittest.TestCase):
         self.assertEqual(json.loads(posts[0][1]), {"ref": "main"})
         self.assertEqual(posts[0][2]["Authorization"], "Bearer GH")
         self.assertIn("https://github.example/run/2", self.api.telegram_calls("sendMessage")[-1]["text"])
+        edits = [e["text"] for e in self.api.telegram_calls("editMessageText")]
+        self.assertTrue(edits[0].startswith("⏳ Выполняется"))
+        self.assertTrue(any("🏃 Прогон на GitHub: https://github.example/run/2" in e for e in edits))
+        self.assertTrue(any("test ✅ · deploy ⏳" in e for e in edits))
+        self.assertTrue(edits[-1].startswith("✅ Готово"))
+        self.assertIn("Пересканирую", edits[-1])
         self.assertEqual(self.status(), "done")
 
     def test_failed_workflow_is_reported_and_not_rescanned(self):

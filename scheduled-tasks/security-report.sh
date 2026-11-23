@@ -155,7 +155,10 @@ summarize_args+=(--host-fix "${HOST_AUTOFIX:-apt-upgrade}" --fixes "${REPORT_DIR
 # Old kernels left on disk are not running; don't report them.
 summarize_args+=(--running-kernel "$(uname -r)")
 
-if [[ -n "${HEARTBEAT_WEEKDAY}" && "$(date +%u)" == "${HEARTBEAT_WEEKDAY}" ]]; then
+if [[ -n "${STATUS_TITLE:-}" ]]; then
+  # forced summary, e.g. the rescan after an auto-fix (security-fix-bot.py)
+  summarize_args+=(--heartbeat --status-title "${STATUS_TITLE}")
+elif [[ -n "${HEARTBEAT_WEEKDAY}" && "$(date +%u)" == "${HEARTBEAT_WEEKDAY}" ]]; then
   summarize_args+=(--heartbeat)
 fi
 

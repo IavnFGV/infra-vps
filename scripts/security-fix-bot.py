@@ -140,9 +140,14 @@ def run_cmd(cmd: list[str], cwd: str | None = None, env: dict | None = None) -> 
     return result.returncode == 0, f"$ {' '.join(cmd)}\n{result.stdout}"
 
 
-def run_steps(steps, cwd=None, env=None) -> tuple[bool, str]:
+def no_progress(key: str, text: str) -> None:
+    pass
+
+
+def run_steps(steps, cwd=None, env=None, progress=no_progress) -> tuple[bool, str]:
     output = []
-    for cmd in steps:
+    for n, cmd in enumerate(steps, 1):
+        progress("step", f"▶ шаг {n}/{len(steps)}: {' '.join(cmd[:4])}…")
         ok, out = run_cmd(cmd, cwd=cwd, env=env)
         output.append(out)
         if not ok:
@@ -164,28 +169,29 @@ def compose_base(action) -> list[str]:
     return base
 
 
-def fix_compose_rebuild(action, config) -> tuple[bool, str]:
+def fix_compose_rebuild(action, config, progress=no_progress) -> tuple[bool, str]:
     base = compose_base(action)
     return run_steps([base + ["build", "--pull"],
                       base + ["up", "-d", "--wait", "--wait-timeout", "180"]],
-                     cwd=compose_dir(action))
+                     cwd=compose_dir(action), progress=progress)
 
 
-def fix_compose_pull(action, config) -> tuple[bool, str]:
+def fix_compose_pull(action, config, progress=no_progress) -> tuple[bool, str]:
     base = compose_base(action)
     return run_steps([base + ["pull"],
                       base + ["up", "-d", "--wait", "--wait-timeout", "180"]],
-                     cwd=compose_dir(action))
+                     cwd=compose_dir(action), progress=progress)
 
 
-def fix_apt_upgrade(action, config) -> tuple[bool, str]:
+def fix_apt_upgrade(action, config, progress=no_progress) -> tuple[bool, str]:
     packages = action.get("packages") or []
     if not packages or not all(APT_PKG.fullmatch(p) for p in packages):
         raise ValueError(f"bad package list: {packages}")
     env = {"DEBIAN_FRONTEND": "noninteractive", "NEEDRESTART_MODE": "a"}
     return run_steps([["apt-get", "update"],
                       ["apt-get", "install", "-y", "--only-upgrade",
-                       "-o", "Dpkg::Options::=--force-confold", *packages]], env=env)
+                       "-o", "Dpkg::Options::=--force-confold", *packages]], env=env,
+                     progress=progress)
 
 
 def github(method: str, path: str, token: str, body: dict | None = None):
@@ -201,7 +207,19 @@ def github(method: str, path: str, token: str, body: dict | None = None):
     return json.loads(data) if data else {}
 
 
-def fix_github_workflow(action, config) -> tuple[bool, str]:
+JOB_ICONS = {"success": "✅", "failure": "❌", "cancelled": "⛔", "skipped": "⏭"}
+
+
+def github_jobs(repo: str, run_id: int, token: str) -> str:
+    """'test ✅ · deploy ⏳' — best effort, the fix does not depend on it."""
+    try:
+        jobs = github("GET", f"/repos/{repo}/actions/runs/{run_id}/jobs", token).get("jobs", [])
+    except (urllib.error.URLError, OSError, json.JSONDecodeError):
+        return ""
+    return " · ".join(f"{j.get('name')} {JOB_ICONS.get(j.get('conclusion'), '⏳')}" for j in jobs)
+
+
+def fix_github_workflow(action, config, progress=no_progress) -> tuple[bool, str]:
     token = config.get("GITHUB_FIX_TOKEN", "")
     repo, workflow, ref = action.get("repo", ""), action.get("workflow", ""), action.get("ref", "main")
     if not token:
@@ -212,6 +230,7 @@ def fix_github_workflow(action, config) -> tuple[bool, str]:
     known = {r["id"] for r in github("GET", runs_path, token).get("workflow_runs", [])}
     github("POST", f"/repos/{repo}/actions/workflows/{workflow}/dispatches", token, {"ref": ref})
     log(f"dispatched {repo} {workflow}@{ref}")
+    progress("github", "🚀 Запрос отправлен в GitHub, жду старта прогона…")
     deadline = time.monotonic() + GITHUB_TIMEOUT_SECONDS
     run_id = None
     while time.monotonic() < deadline:
@@ -223,6 +242,10 @@ def fix_github_workflow(action, config) -> tuple[bool, str]:
                 continue
             run_id = min(r["id"] for r in fresh)
         run = github("GET", f"/repos/{repo}/actions/runs/{run_id}", token)
+        progress("github", f"🏃 Прогон на GitHub: {run.get('html_url', run_id)}")
+        jobs = github_jobs(repo, run_id, token)
+        if jobs:
+            progress("jobs", jobs)
         if run.get("status") == "completed":
             conclusion = run.get("conclusion")
             return conclusion == "success", f"GitHub run {conclusion}: {run.get('html_url', '')}"
@@ -252,20 +275,22 @@ def describe(proposal) -> str:
             f"Будут перезапущены: {', '.join(proposal['restarts'])}")
 
 
-def execute(proposal, config) -> tuple[bool, str]:
+def execute(proposal, config, progress=no_progress) -> tuple[bool, str]:
     executor = EXECUTORS.get(proposal["action"]["type"])
     if not executor:
         return False, f"unknown fix type {proposal['action']['type']}"
     try:
-        return executor(proposal["action"], config)
+        return executor(proposal["action"], config, progress)
     except (ValueError, OSError, urllib.error.URLError, KeyError) as exc:
         return False, f"{type(exc).__name__}: {exc}"
 
 
-def rescan() -> None:
+def rescan(label: str) -> None:
     log("rescanning")
     try:
+        # STATUS_TITLE: always send a summary, even when nothing changed
         subprocess.run(["bash", REPORT_BIN], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                       env={**os.environ, "STATUS_TITLE": f"📋 После фикса {label}"},
                        stderr=subprocess.DEVNULL, timeout=CMD_TIMEOUT)
     except (OSError, subprocess.TimeoutExpired) as exc:
         log(f"rescan failed: {exc}")
@@ -337,18 +362,38 @@ def handle_callback(tg: Telegram, config: dict, callback: dict) -> None:
             return
         set_status(fix_id, "running")
         answer("Запущено")
-        tg.call("editMessageText", chat_id=chat, message_id=message.get("message_id"),
-                text=f"⏳ Выполняется…\n{describe(proposal)}")
+        started = time.monotonic()
+        lines: dict[str, str] = {}
+        shown = {"text": ""}
+
+        # The confirmation message turns into a live status of the fix.
+        def show(header: str) -> None:
+            elapsed = int(time.monotonic() - started)
+            text = (f"{header} ({elapsed // 60}:{elapsed % 60:02d})\n{describe(proposal)}\n\n"
+                    + "\n".join(lines.values()))
+            if text != shown["text"]:
+                shown["text"] = text
+                tg.call("editMessageText", chat_id=chat, message_id=message.get("message_id"),
+                        text=text, disable_web_page_preview=True)
+
+        def progress(key: str, text: str) -> None:
+            if lines.get(key) != text:
+                lines[key] = text
+                show("⏳ Выполняется")
+
+        progress("start", "▶ запускаю…")
         log(f"run {fix_id} by user {user}: {json.dumps(proposal['action'])}")
-        ok, output = execute(proposal, config)
+        ok, output = execute(proposal, config, progress)
         set_status(fix_id, "done" if ok else "failed")
         log(f"{fix_id} {'done' if ok else 'FAILED'}\n{output}")
-        tg.call("sendMessage", chat_id=chat,
-                text=f"{'✅ Готово' if ok else '❌ Не удалось'}: {proposal['label']}\n"
-                     f"{tail(output)}" + ("\nПересканирую, отчёт придёт следующим сообщением."
-                                          if ok else ""))
         if ok:
-            rescan()
+            lines["rescan"] = "🔎 Пересканирую — отчёт придёт отдельным сообщением"
+        show("✅ Готово" if ok else "❌ Не удалось")
+        # A separate message, because edits do not notify.
+        tg.call("sendMessage", chat_id=chat, disable_web_page_preview=True,
+                text=f"{'✅ Готово' if ok else '❌ Не удалось'}: {proposal['label']}\n{tail(output)}")
+        if ok:
+            rescan(proposal["label"])
     else:
         answer("?")
 

@@ -177,6 +177,12 @@ class SecurityReportTests(unittest.TestCase):
         _, sent = self.run_report()
         self.assertIn("Weekly status: 4 fixable", sent)
 
+    def test_forced_status_after_fix_is_sent_without_news(self):
+        self.run_report()
+        self.env["STATUS_TITLE"] = "📋 После фикса x"
+        _, sent = self.run_report()
+        self.assertIn("📋 После фикса x: 4 fixable HIGH/CRITICAL open", sent)
+
     def test_resolved_findings_are_reported(self):
         self.run_report()
         (self.root / "vuln.json").write_text(json.dumps({"Results": []}))

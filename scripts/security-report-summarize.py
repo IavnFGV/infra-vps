@@ -327,6 +327,8 @@ def main() -> int:
     parser.add_argument("--reboot-required-file", type=Path,
                         default=Path("/var/run/reboot-required"))
     parser.add_argument("--heartbeat", action="store_true")
+    parser.add_argument("--status-title", default="🗓 Weekly status",
+                        help="title of the --heartbeat summary")
     parser.add_argument("--built-locally", action="append", default=[],
                         help="label of an image built from our Dockerfile (others are upstream)")
     parser.add_argument("--containers", type=Path, help="docker inspect JSON of running containers")
@@ -442,7 +444,7 @@ def main() -> int:
     if args.heartbeat:
         total = len(findings)
         items = list(findings.values())
-        msg.append(f"🗓 Weekly status: {total} fixable HIGH/CRITICAL open"
+        msg.append(f"{args.status_title}: {total} fixable HIGH/CRITICAL open"
                    + (f" ({fmt_stats(items)})" if total else " — all clean"))
         if total:
             msg.append(f"Fix route: {fmt_routes(items)}")
