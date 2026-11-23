@@ -17,7 +17,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 REPORT_DIR="${REPORT_DIR:-/var/log/infra-vps-security}"
 TRIVY_CACHE_DIR="${TRIVY_CACHE_DIR:-/var/cache/trivy}"
 SEVERITY="${SEVERITY:-HIGH,CRITICAL}"
-HEARTBEAT_WEEKDAY="${HEARTBEAT_WEEKDAY:-1}"   # 1 = Monday, empty = never
+HEARTBEAT_WEEKDAY="${HEARTBEAT_WEEKDAY-1}"    # 1 = Monday, empty = never
 KEEP_REPORTS_DAYS="${KEEP_REPORTS_DAYS:-60}"
 SCAN_HOST="${SCAN_HOST:-true}"
 NOTIFY_BIN="${NOTIFY_BIN:-${REPO_ROOT}/scripts/notify-telegram.sh}"
@@ -111,6 +111,11 @@ else
         continue
       fi
       target+=(--input "${tar}")
+    fi
+
+    # compose labels the images it builds; a pulled image has no such label.
+    if [[ -n "$(docker image inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' "${image_id}" 2>/dev/null || true)" ]]; then
+      summarize_args+=(--built-locally "${label}")
     fi
 
     log "Scanning ${label} (${ref}, ${image_id:7:12})"

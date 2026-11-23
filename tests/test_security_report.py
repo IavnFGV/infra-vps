@@ -13,6 +13,7 @@ VULN_JSON = {
     "Results": [
         {
             "Target": "debian",
+            "Class": "os-pkgs",
             "Vulnerabilities": [
                 {
                     "VulnerabilityID": "CVE-2026-0001",
@@ -20,6 +21,8 @@ VULN_JSON = {
                     "InstalledVersion": "3.0.1",
                     "FixedVersion": "3.0.2",
                     "Severity": "CRITICAL",
+                    "SeveritySource": "debian",
+                    "CVSS": {"nvd": {"V3Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"}},
                 },
                 {
                     "VulnerabilityID": "CVE-2026-0002",
@@ -62,6 +65,9 @@ case "$1" in
   image)
     case "${@: -1}" in
       tts-service-tts) echo "${TTS_TAG_ID:-sha256:aaaaaaaaaaaaaaaa}" ;;
+      # compose project label: only the tts image is built locally
+      sha256:aaaaaaaaaaaaaaaa) echo tts-service ;;
+      sha256:bbbbbbbbbbbbbbbb|sha256:index000000000000) echo ;;
       bot-app) if [[ "$*" == *--platform* ]]; then echo sha256:manifest00000000; else echo sha256:otherindex000000; fi ;;
       nginx:1.30.7-alpine) echo sha256:bbbbbbbbbbbbbbbb ;;
       *) exit 1 ;;
@@ -156,6 +162,45 @@ class SecurityReportTests(unittest.TestCase):
         self.assertIn("tts-service/tts: libssl3 was 3.0.1, fixed in 3.0.2", sent)
         report = (self.root / "reports" / "latest.txt").read_text()
         self.assertIn("libssl3 was 3.0.1, fixed in 3.0.2", report)
+
+
+    def test_counts_fix_routes_and_network_critical(self):
+        fixture = {"Results": [
+            {"Class": "os-pkgs", "Vulnerabilities": [
+                {"VulnerabilityID": f"CVE-2026-10{n}", "PkgName": pkg, "InstalledVersion": "1",
+                 "FixedVersion": "2", "Severity": "HIGH"}
+                for n in range(3) for pkg in ("libkrb5-3", "libk5crypto3")
+            ] + [
+                {"VulnerabilityID": "CVE-2026-0001", "PkgName": "libssl3", "InstalledVersion": "1",
+                 "FixedVersion": "2", "Severity": "CRITICAL",
+                 "CVSS": {"redhat": {"V3Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"}}},
+            ]},
+            {"Class": "lang-pkgs", "Vulnerabilities": [
+                {"VulnerabilityID": "CVE-2026-0009", "PkgName": "requests", "InstalledVersion": "1",
+                 "FixedVersion": "2", "Severity": "CRITICAL",
+                 "CVSS": {"nvd": {"V3Vector": "CVSS:3.1/AV:L/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"}}},
+            ]},
+        ]}
+        (self.root / "vuln.json").write_text(json.dumps(fixture))
+        self.env["SCAN_HOST"] = "false"
+        _, sent = self.run_report()
+        # 3 images x 8 findings; 5 CVEs and 4 packages per image
+        self.assertIn("New fixable vulnerabilities: 24 (5 unique CVE, 12 packages)", sent)
+        # tts is built locally: OS -> rebuild, lang -> deps; nginx and bot are pulled
+        self.assertIn("♻️ rebuild image 7, 🛠 deps/Dockerfile change 1, 📥 new upstream image 16", sent)
+        self.assertIn("🚨 CRITICAL: 6 (🌐 network-exploitable: 3)", sent)
+        self.assertIn("CVE-2026-0001        bot/app: libssl3 1 -> 2 🌐", sent)
+        self.assertNotIn("requests 1 -> 2 🌐", sent)
+        self.assertIn("HIGH     tts-service/tts: libkrb5-3 1 -> 2 (3 CVE)", sent)
+        # network-exploitable CRITICAL are listed before the local ones
+        self.assertLess(sent.index("libssl3"), sent.index("requests"))
+        report = (self.root / "reports" / "latest.txt").read_text()
+        self.assertIn("tts-service/tts: CRITICAL 2, HIGH 6; 5 unique CVE, 4 packages", report)
+
+        self.env["HEARTBEAT_WEEKDAY"] = subprocess.check_output(["date", "+%u"], text=True).strip()
+        _, sent = self.run_report()
+        self.assertIn("Weekly status: 24 fixable HIGH/CRITICAL open (5 unique CVE, 12 packages)", sent)
+        self.assertIn("- tts-service/tts: 8, CRITICAL 2 (🌐 1); ♻️ rebuild image 7, 🛠 deps/Dockerfile change 1", sent)
 
 
 class SecurityReportEdgeCaseTests(SecurityReportTests):

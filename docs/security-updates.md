@@ -63,6 +63,17 @@ Options of `008-setup-auto-updates.sh` (environment variables): `AUTO_REBOOT`,
 - HIGH/CRITICAL vulnerabilities **with a fix available** in host OS packages
   and in every running container image (labelled `compose-project/service`)
 - which of those are new since the previous run and which got resolved
+- totals: findings, unique CVEs, affected packages (per image too)
+- fix route of every finding:
+  `♻️ rebuild image` (OS package in an image built from our Dockerfile — the
+  `apt-get upgrade` / `apk upgrade` layer fixes it on rebuild),
+  `🛠 deps/Dockerfile change` (Python/Node/Go package in our image — needs a
+  dependency bump), `📥 new upstream image` (anything in a pulled third-party
+  image such as Dockge), `🖥 host unattended-upgrades`.
+  "Ours" = the image carries compose's `com.docker.compose.project` label.
+- CRITICAL count, with `🌐` on the network-exploitable ones (CVSS v3 `AV:N`);
+  in Telegram CRITICAL are listed one per CVE (network first), the rest
+  grouped one line per package
 
 Telegram gets a message only when there is news; on Mondays it also sends a
 heartbeat with totals, so silence on Monday means the task is broken.
