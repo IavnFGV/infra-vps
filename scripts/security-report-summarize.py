@@ -329,6 +329,7 @@ def main() -> int:
     parser.add_argument("--heartbeat", action="store_true")
     parser.add_argument("--status-title", default="🗓 Weekly status",
                         help="title of the --heartbeat summary")
+    parser.add_argument("--status-focus", help="component just fixed: its result goes first")
     parser.add_argument("--built-locally", action="append", default=[],
                         help="label of an image built from our Dockerfile (others are upstream)")
     parser.add_argument("--containers", type=Path, help="docker inspect JSON of running containers")
@@ -441,6 +442,13 @@ def main() -> int:
     if scan_errors:
         msg.append("⚠️ Scan errors:")
         msg.extend(f"{label}: {m}" for label, m in scan_errors[:5])
+    if args.status_focus:
+        left = [i for i in findings.values() if i["label"] == args.status_focus]
+        if left:
+            msg.append(f"⚠️ {args.status_focus}: осталось {len(left)} ({fmt_stats(left)}); "
+                       f"{fmt_routes(left)}")
+        else:
+            msg.append(f"✅ {args.status_focus}: уязвимостей HIGH/CRITICAL не осталось")
     if args.heartbeat:
         total = len(findings)
         items = list(findings.values())

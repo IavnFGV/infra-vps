@@ -156,8 +156,12 @@ summarize_args+=(--host-fix "${HOST_AUTOFIX:-apt-upgrade}" --fixes "${REPORT_DIR
 summarize_args+=(--running-kernel "$(uname -r)")
 
 if [[ -n "${STATUS_TITLE:-}" ]]; then
-  # forced summary, e.g. the rescan after an auto-fix (security-fix-bot.py)
+  # forced summary, e.g. the rescan after an auto-fix (security-fix-bot.py):
+  # STATUS_FOCUS = the fixed component, reported first
   summarize_args+=(--heartbeat --status-title "${STATUS_TITLE}")
+  if [[ -n "${STATUS_FOCUS:-}" ]]; then
+    summarize_args+=(--status-focus "${STATUS_FOCUS}")
+  fi
 elif [[ -n "${HEARTBEAT_WEEKDAY}" && "$(date +%u)" == "${HEARTBEAT_WEEKDAY}" ]]; then
   summarize_args+=(--heartbeat)
 fi

@@ -83,7 +83,7 @@ class FixBotTests(unittest.TestCase):
         docker.write_text('#!/usr/bin/env bash\nprintf "%s | %s\\n" "$PWD" "$*" >> "$DOCKER_CALLS"\n')
         docker.chmod(0o755)
         report = self.root / "report.sh"
-        report.write_text('echo "rescan $STATUS_TITLE" >> "$DOCKER_CALLS"\n')
+        report.write_text('echo "rescan $STATUS_FOCUS" >> "$DOCKER_CALLS"\n')
         (self.root / "stack").mkdir()
         config = self.root / "notify.env"
         config.write_text("TELEGRAM_BOT_TOKEN=T\nTELEGRAM_CHAT_ID=100\nGITHUB_FIX_TOKEN=GH\n")
@@ -140,7 +140,7 @@ class FixBotTests(unittest.TestCase):
         self.assertIn("compose -p bot up -d --wait", calls)
         edits = [e["text"] for e in self.api.telegram_calls("editMessageText")]
         self.assertTrue(any("▶ шаг 2/2: docker compose -p bot" in e for e in edits))
-        self.assertTrue(calls.endswith("rescan 📋 После фикса bot/app\n"))
+        self.assertTrue(calls.endswith("rescan bot/app\n"))
         self.assertEqual(self.status(), "done")
         self.assertIn("✅ Готово: bot/app", self.api.telegram_calls("sendMessage")[-1]["text"])
 

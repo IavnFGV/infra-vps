@@ -290,7 +290,8 @@ def rescan(label: str) -> None:
     try:
         # STATUS_TITLE: always send a summary, even when nothing changed
         subprocess.run(["bash", REPORT_BIN], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                       env={**os.environ, "STATUS_TITLE": f"📋 После фикса {label}"},
+                       env={**os.environ, "STATUS_FOCUS": label,
+                            "STATUS_TITLE": "📋 Всего на сервере"},
                        stderr=subprocess.DEVNULL, timeout=CMD_TIMEOUT)
     except (OSError, subprocess.TimeoutExpired) as exc:
         log(f"rescan failed: {exc}")

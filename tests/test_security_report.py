@@ -179,9 +179,15 @@ class SecurityReportTests(unittest.TestCase):
 
     def test_forced_status_after_fix_is_sent_without_news(self):
         self.run_report()
-        self.env["STATUS_TITLE"] = "📋 После фикса x"
+        self.env["STATUS_TITLE"] = "📋 Всего на сервере"
+        self.env["STATUS_FOCUS"] = "tts-service/tts"
         _, sent = self.run_report()
-        self.assertIn("📋 После фикса x: 4 fixable HIGH/CRITICAL open", sent)
+        self.assertIn("⚠️ tts-service/tts: осталось 1 (1 unique CVE, 1 packages); ♻️ rebuild image 1", sent)
+        self.assertIn("📋 Всего на сервере: 4 fixable HIGH/CRITICAL open", sent)
+        self.assertLess(sent.index("tts-service/tts: осталось"), sent.index("Всего на сервере"))
+        (self.root / "vuln.json").write_text(json.dumps({"Results": []}))
+        _, sent = self.run_report()
+        self.assertIn("✅ tts-service/tts: уязвимостей HIGH/CRITICAL не осталось", sent)
 
     def test_resolved_findings_are_reported(self):
         self.run_report()
