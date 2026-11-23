@@ -8,7 +8,7 @@ on:
     branches:
       - main
   workflow_dispatch:
-  # Weekly rebuild of the nginx image to pick up Alpine security fixes.
+  # Weekly rebuild of the nginx and Dockge images to pick up OS security fixes.
   schedule:
     - cron: "47 2 * * 1"
 
@@ -94,6 +94,8 @@ jobs:
             test "$(git rev-parse HEAD)" = "${DEPLOY_SHA}"
             ./scripts/006-deploy-infra.sh </dev/null
             ./scripts/apply-services.sh </dev/null
+            # Dockge runs our patched image; rebuild it if Dockge is installed.
+            if [ -f /opt/dockge/compose.yaml ]; then sudo ./scripts/007-install-dockge.sh </dev/null; fi
             sudo ./scripts/009-setup-security-fix-bot.sh </dev/null
             docker compose ps
             echo "Deployed commit $(git rev-parse HEAD)"

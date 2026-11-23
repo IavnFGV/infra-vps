@@ -84,5 +84,50 @@ class DeployInfraTests(unittest.TestCase):
         self.assertNotIn("CI_DONE", result.stdout)
 
 
+class InstallDockgeTests(unittest.TestCase):
+    def run_install(self, **extra_env):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "bin").mkdir()
+            docker = root / "bin" / "docker"
+            docker.write_text('#!/usr/bin/env bash\nprintf "%s @%s\\n" "$*" "$PWD" >> "$DOCKER_CALLS"\n')
+            docker.chmod(0o755)
+            chown = root / "bin" / "chown"
+            chown.write_text("#!/usr/bin/env bash\nexit 0\n")
+            chown.chmod(0o755)
+            env = {
+                **os.environ,
+                "PATH": f"{root / 'bin'}:{os.environ['PATH']}",
+                "DOCKER_CALLS": str(root / "docker-calls"),
+                "ALLOW_NON_ROOT": "true",
+                "DOCKGE_DIR": str(root / "dockge"),
+                "DOCKGE_STACKS_DIR": str(root / "dockge" / "stacks"),
+                "DOCKGE_USER": os.environ.get("USER") or "root",
+                **extra_env,
+            }
+            result = subprocess.run(["bash", str(ROOT / "scripts" / "007-install-dockge.sh")],
+                                    text=True, capture_output=True, env=env)
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+            return ((root / "docker-calls").read_text(),
+                    (root / "dockge" / "compose.yaml").read_text())
+
+    def test_builds_patched_image_and_runs_it(self):
+        calls, compose = self.run_install()
+        self.assertRegex(calls, r"build --pull --build-arg SECURITY_REFRESH=\d{8}T\d{6} "
+                                r"-t infra-vps-dockge:local \S+/dockge/image")
+        self.assertLess(calls.index("build"), calls.index("compose up -d"))
+        self.assertIn("image: infra-vps-dockge:local", compose)
+        self.assertIn("pull_policy: never", compose)
+        self.assertIn("infra-vps.fix: github-workflow", compose)
+        self.assertIn("127.0.0.1:5001:5001", compose)
+        self.assertTrue((ROOT / "dockge" / "image" / "Dockerfile").is_file())
+
+    def test_explicit_upstream_image_is_not_built(self):
+        calls, compose = self.run_install(DOCKGE_IMAGE="louislam/dockge:1")
+        self.assertNotIn("build", calls)
+        self.assertIn("image: louislam/dockge:1", compose)
+        self.assertIn("pull_policy: missing", compose)
+
+
 if __name__ == "__main__":
     unittest.main()

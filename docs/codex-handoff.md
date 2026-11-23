@@ -1,5 +1,7 @@
 # Codex handoff
 
+Start with `AGENTS.md` (repo map, server traps) and `CHANGELOG.md`.
+
 This repository is intentionally narrow.
 Do not introduce Kubernetes, Traefik, Swarm, Ansible, Terraform, or dynamic
 reverse-proxy discovery.

@@ -16,6 +16,8 @@ pockets, Dependabot patch/minor bumps that pass tests, and a weekly rebuild.
 | Python dependencies of a service | Dependabot PR -> tests + `pip-audit` -> auto-merge -> deploy | security PRs as soon as an advisory is published; routine bumps weekly |
 | Base image of a service (`python:3.x-slim`, Debian packages inside) | weekly scheduled run of the service deploy workflow (`docker compose build --pull`) | Monday 02:17 UTC |
 | nginx (`nginx/image/Dockerfile`: official image + `apk upgrade`) | rebuilt on every infra deploy and weekly; Dependabot bumps the base tag -> auto-merge -> deploy (`nginx -t` gates the restart) | weekly Monday 02:47 UTC + daily tag check |
+| Dockge (`dockge/image/Dockerfile`: `louislam/dockge:1` + `apt-get upgrade`, incl. docker CLI/compose from Docker's repo) | `scripts/007-install-dockge.sh`, run by every infra deploy when `/opt/dockge/compose.yaml` exists | weekly Monday 02:47 UTC |
+| Fixes that need a human "go" | Telegram button from the security report (see below) | when you press it |
 | Anything the above missed | `scheduled-tasks/security-report.sh` (Trivy) reports it | daily 05:15 |
 
 Every Dependabot PR is merged once tests pass, major versions included.
@@ -169,6 +171,14 @@ Without it those fixes are listed with `[needs GITHUB_FIX_TOKEN]` and no button.
 - **a service image**, Python package: check for an open Dependabot PR
   (it stays open only if tests failed), or bump it yourself.
 - **nginx**: rebuilt with Alpine fixes on every infra deploy and weekly; to force it now run the infra deploy workflow manually.
+- **Dockge**: same, via `007-install-dockge.sh`. What stays after a rebuild
+  (`🛠 deps`) is Dockge's own npm packages and the Go runtime of build tools
+  left in the upstream image (esbuild, healthcheck): only an upstream release
+  fixes them. Upstream has not released since 2025-03 (1.5.0); its `:nightly`
+  rebuilds only the app layer on a `:base` from 2026-03, and security issues
+  (#999, #1009, #1011, #1015) are open without answer. Measured 2026-11-23:
+  218 findings / 15 CRITICAL on `louislam/dockge:1` -> 115 / 6 on our build,
+  no Debian findings left. Dockge listens on 127.0.0.1 only.
 - **Other stacks serving static files**: use `image: infra-vps-nginx:local` with
   `pull_policy: never` (the image exists only in the local Docker store). The infra
   deploy recreates every running stack that uses it, so they get each rebuild too.
