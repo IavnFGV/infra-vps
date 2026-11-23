@@ -113,11 +113,13 @@ else
       target+=(--input "${tar}")
     fi
 
-    # compose labels the images it builds; a pulled image has no such label.
+    # Ours = built here: compose labels the images it builds, `docker build`
+    # images (Dockge) carry infra-vps.local-build; pulled images have neither.
     # (by tag: with the containerd store the running image id may not resolve)
-    built_by="$(docker image inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' "${ref}" 2>/dev/null \
-      || docker image inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' "${image_id}" 2>/dev/null || true)"
-    if [[ -n "${built_by}" && "${built_by}" != "<no value>" ]]; then
+    image_labels_json="$(docker image inspect --format '{{json .Config.Labels}}' "${ref}" 2>/dev/null \
+      || docker image inspect --format '{{json .Config.Labels}}' "${image_id}" 2>/dev/null || true)"
+    if [[ "${image_labels_json}" == *'"com.docker.compose.project"'* \
+       || "${image_labels_json}" == *'"infra-vps.local-build"'* ]]; then
       summarize_args+=(--built-locally "${label}")
     fi
 

@@ -30,6 +30,9 @@ GitHub Actions.
 - Images we build (nginx, Dockge, services) must pass a per-build
   `SECURITY_REFRESH` build arg before their `apt-get/apk upgrade` layer,
   otherwise the build cache silently keeps old packages.
+- The report treats an image as ours when it has the compose project label
+  (compose builds) or `infra-vps.local-build` (images built with `docker build`,
+  e.g. Dockge). Without either, its findings are routed to "upstream".
 - systemd units run without `HOME`; scripts with `set -u` must not expand it bare.
 - `pgrep -f <name>` over `ssh` matches the ssh command line itself.
 

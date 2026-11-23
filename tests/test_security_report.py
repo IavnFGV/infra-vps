@@ -78,9 +78,14 @@ case "$1" in
       esac
     done ;;
   image)
-    if [[ "$*" == *com.docker.compose.project* ]]; then
-      # only the tts image is built by compose; the others are pulled
-      [[ "${@: -1}" == tts-service-tts ]] && echo tts-service || echo '<no value>'
+    if [[ "$*" == *"json .Config.Labels"* ]]; then
+      # tts is built by compose; bot-app is pulled unless BOT_LOCAL_BUILD
+      # (a `docker build` image with our label, like Dockge); nginx is pulled
+      case "${@: -1}" in
+        tts-service-tts) echo '{"com.docker.compose.project":"tts-service"}' ;;
+        bot-app) [[ -n "${BOT_LOCAL_BUILD:-}" ]] && echo '{"infra-vps.local-build":"true"}' || echo null ;;
+        *) echo null ;;
+      esac
       exit 0
     fi
     case "${@: -1}" in
@@ -266,6 +271,12 @@ class SecurityReportTests(unittest.TestCase):
         markup = json.loads((self.root / "notify-out.markup").read_text())
         self.assertIn("🔧 Fix tts-service/tts (1)", [row[0]["text"] for row in markup["inline_keyboard"]])
         self.assertNotIn("[needs GITHUB_FIX_TOKEN]", with_token)
+
+    def test_docker_build_image_with_our_label_counts_as_ours(self):
+        self.env["SCAN_HOST"] = "false"
+        self.env["BOT_LOCAL_BUILD"] = "1"
+        _, sent = self.run_report()
+        self.assertIn("Fix route: ♻️ rebuild image 2, 📥 new upstream image 1", sent)
 
     def test_host_fix_is_apt_upgrade_of_its_packages(self):
         _, sent = self.run_report()

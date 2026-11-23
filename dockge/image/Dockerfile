@@ -8,6 +8,10 @@
 # Not fixed here: Dockge's own npm dependencies (needs an upstream release).
 FROM louislam/dockge:1
 
+# Marks the image as ours for the security report (fix route rebuild/deps,
+# not "upstream"); compose-built images carry com.docker.compose.project.
+LABEL infra-vps.local-build="true"
+
 # Changes on every build, so the build cache never hides a fix.
 ARG SECURITY_REFRESH=0
 RUN apt-get update \

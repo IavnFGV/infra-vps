@@ -9,6 +9,8 @@ Newest first. What changed and why; details are in `docs/` and git history.
   deploy. Upstream has not released since 2025-03 and its security issues are
   unanswered. Findings 218 -> 115, CRITICAL 15 -> 6; the rest is Dockge's own
   npm deps (needs upstream). Dockge got the auto-fix label.
+  The image has `LABEL infra-vps.local-build="true"` so the report counts it as
+  ours (`docker build` images lack compose's project label).
 - Telegram auto-fix buttons for the security report: classifier proposals per
   component (`github-workflow`, `compose-rebuild`, `compose-pull`,
   `apt-upgrade`), `scripts/security-fix-bot.py` as a systemd service with
