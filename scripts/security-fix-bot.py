@@ -88,8 +88,10 @@ def load_config() -> dict[str, str]:
     config = {}
     for key, value in raw.items():
         if value.startswith("enc:"):
+            env = {**os.environ, "INFRA_MASTER_KEY_FILE": os.environ.get(
+                "INFRA_MASTER_KEY_FILE", "/opt/infra-secrets/master.key")}
             value = subprocess.run([DECRYPT_BIN, value], check=True, text=True,
-                                   capture_output=True).stdout.strip()
+                                   capture_output=True, env=env).stdout.strip()
         config[key] = value
     return config
 
